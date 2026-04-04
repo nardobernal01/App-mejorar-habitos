@@ -1,29 +1,44 @@
 import 'package:flutter/material.dart';
 
 class Habit {
-  final String title;
-  int streak;
+  final String id; // El ID que faltaba
+  String title;
   bool isCompleted;
+  int streak;
+  Color dynamicColor;
+  DateTime? lastCompletedDate;
 
-  Habit({required this.title, this.streak = 0, this.isCompleted = false});
+  Habit({
+    String? id,
+    required this.title,
+    this.isCompleted = false,
+    this.streak = 0,
+    Color? color,
+    this.lastCompletedDate,
+  }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+       dynamicColor = color ?? const Color(0xFF10B981);
 
-  // Convierte el Hábito a un formato que el celular entienda (Map)
-  Map<String, dynamic> toMap() => {
-    'title': title,
-    'streak': streak,
-    'isCompleted': isCompleted,
-  };
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'isCompleted': isCompleted,
+      'streak': streak,
+      'dynamicColor': dynamicColor.toARGB32(),
+      'lastCompletedDate': lastCompletedDate?.toIso8601String(),
+    };
+  }
 
-  // Crea un Hábito desde los datos guardados
-  factory Habit.fromMap(Map<String, dynamic> map) => Habit(
-    title: map['title'],
-    streak: map['streak'],
-    isCompleted: map['isCompleted'],
-  );
-
-  Color get dynamicColor {
-    if (isCompleted) return const Color(0xFF10B981);
-    if (streak > 10) return const Color(0xFF1E40AF);
-    return const Color(0xFF2563EB);
+  factory Habit.fromMap(Map<String, dynamic> map) {
+    return Habit(
+      id: map['id'],
+      title: map['title'],
+      isCompleted: map['isCompleted'] ?? false,
+      streak: map['streak'] ?? 0,
+      color: Color(map['dynamicColor']),
+      lastCompletedDate: map['lastCompletedDate'] != null
+          ? DateTime.parse(map['lastCompletedDate'])
+          : null,
+    );
   }
 }
