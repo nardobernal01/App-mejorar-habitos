@@ -152,7 +152,7 @@ class _HabitScreenState extends State<HabitScreen>
 
   void _scheduleHabitReminder(Habit habit) async {
     if (habit.reminderTime == null) {
-      return; // CORRECCIÓN: Llaves añadidas
+      return;
     }
 
     final parts = habit.reminderTime!.split(":");
@@ -170,9 +170,7 @@ class _HabitScreenState extends State<HabitScreen>
     );
 
     if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(
-        const Duration(days: 1),
-      ); // CORRECCIÓN: Llaves añadidas
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
 
     const AndroidNotificationDetails androidDetails =
@@ -213,9 +211,7 @@ class _HabitScreenState extends State<HabitScreen>
     );
 
     if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(
-        const Duration(days: 1),
-      ); // CORRECCIÓN: Llaves añadidas
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
 
     const AndroidNotificationDetails androidDetails =
@@ -299,7 +295,7 @@ class _HabitScreenState extends State<HabitScreen>
             habit.isCompleted = false;
             changed = true;
             if (today.difference(lastCompletedDay).inDays > 1) {
-              habit.streak = 0; // CORRECCIÓN: Llaves añadidas
+              habit.streak = 0;
             }
           }
         }
@@ -893,7 +889,7 @@ class _HabitScreenState extends State<HabitScreen>
             }
 
             if (focusTimer == null) {
-              startTimer(); // CORRECCIÓN: Llaves añadidas
+              startTimer();
             }
 
             String formatTime(int seconds) {
@@ -1050,9 +1046,7 @@ class _HabitScreenState extends State<HabitScreen>
           myHabits[index].reminderTime = reminderStr;
 
           if (reminderStr != null) {
-            _scheduleHabitReminder(
-              myHabits[index],
-            ); // CORRECCIÓN: Llaves añadidas
+            _scheduleHabitReminder(myHabits[index]);
           }
         } else {
           final newHabit = Habit(
@@ -1063,7 +1057,7 @@ class _HabitScreenState extends State<HabitScreen>
           );
           myHabits.add(newHabit);
           if (reminderStr != null) {
-            _scheduleHabitReminder(newHabit); // CORRECCIÓN: Llaves añadidas
+            _scheduleHabitReminder(newHabit);
           }
         }
       });
@@ -1090,6 +1084,66 @@ class _HabitScreenState extends State<HabitScreen>
     }
 
     final isDark = themeNotifier.value == ThemeMode.dark;
+
+    // MEJORA PREMIUM: Quick Actions con Auto-programación de tiempo
+    final List<Map<String, dynamic>> quickActions = [
+      {
+        "label": "💧 Agua",
+        "title": "Tomar 2L de agua",
+        "color": _palette[1],
+        "icon": _iconList[3],
+        "time": null,
+      },
+      {
+        "label": "🌅 Despertar",
+        "title": "Levantarse temprano",
+        "color": _palette[3],
+        "icon": _iconList[0],
+        "time": const TimeOfDay(hour: 6, minute: 0),
+      },
+      {
+        "label": "🛌 Dormir",
+        "title": "Hora de dormir",
+        "color": _palette[7],
+        "icon": _iconList[4],
+        "time": const TimeOfDay(hour: 22, minute: 30),
+      },
+      {
+        "label": "🍎 Comer",
+        "title": "Comida saludable",
+        "color": _palette[4],
+        "icon": _iconList[6],
+        "time": const TimeOfDay(hour: 14, minute: 0),
+      },
+      {
+        "label": "💻 Programar",
+        "title": "Estudiar Código",
+        "color": _palette[2],
+        "icon": _iconList[5],
+        "time": const TimeOfDay(hour: 18, minute: 0),
+      },
+      {
+        "label": "📖 Leer",
+        "title": "Leer 15 minutos",
+        "color": _palette[0],
+        "icon": _iconList[2],
+        "time": null,
+      },
+      {
+        "label": "🏋️ Ejercicio",
+        "title": "Hacer ejercicio",
+        "color": _palette[6],
+        "icon": _iconList[1],
+        "time": null,
+      },
+      {
+        "label": "🧹 Ordenar",
+        "title": "Limpiar habitación",
+        "color": _palette[5],
+        "icon": _iconList[7],
+        "time": null,
+      },
+    ];
 
     showGeneralDialog(
       context: context,
@@ -1227,6 +1281,57 @@ class _HabitScreenState extends State<HabitScreen>
                               fillColor: isDark
                                   ? Colors.white10
                                   : Colors.black.withValues(alpha: 0.03),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          // PÍLDORAS INTELIGENTES RESTAURADAS
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: quickActions
+                                  .map(
+                                    (action) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        right: 8.0,
+                                      ),
+                                      child: ActionChip(
+                                        label: Text(action["label"]),
+                                        backgroundColor: isDark
+                                            ? Colors.white10
+                                            : Colors.black.withValues(
+                                                alpha: 0.05,
+                                              ),
+                                        side: BorderSide.none,
+                                        onPressed: () {
+                                          SystemSound.play(
+                                            SystemSoundType.click,
+                                          );
+                                          HapticFeedback.mediumImpact();
+                                          if (isEdit) {
+                                            setDS(() {
+                                              _habitController.text =
+                                                  action["title"];
+                                              selectedColor = action["color"];
+                                              selectedIcon = action["icon"];
+                                              if (action["time"] != null) {
+                                                selectedReminder =
+                                                    action["time"];
+                                              }
+                                            });
+                                          } else {
+                                            _performSave(
+                                              action["title"],
+                                              action["color"],
+                                              action["icon"],
+                                              action["time"],
+                                            );
+                                            Navigator.pop(context);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
                             ),
                           ),
                           const SizedBox(height: 20),
@@ -1684,7 +1789,7 @@ class _HabitScreenState extends State<HabitScreen>
                       HapticFeedback.heavyImpact();
                       setState(() {
                         if (newIdx > oldIdx) {
-                          newIdx--; // CORRECCIÓN: Llaves añadidas
+                          newIdx--;
                         }
                         final item = myHabits.removeAt(oldIdx);
                         myHabits.insert(newIdx, item);
