@@ -1,13 +1,23 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 import 'models/habit_model.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 
-void main() => runApp(const VitalHabitApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  tz.initializeTimeZones();
+  runApp(const VitalHabitApp());
+}
 
 class VitalHabitApp extends StatelessWidget {
   const VitalHabitApp({super.key});
@@ -51,7 +61,10 @@ class VitalHabitApp extends StatelessWidget {
             ),
             useMaterial3: true,
           ),
-          home: const HabitScreen(),
+          home: GestureDetector(
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: const HabitScreen(),
+          ),
         );
       },
     );
@@ -65,23 +78,27 @@ class HabitScreen extends StatefulWidget {
   State<HabitScreen> createState() => _HabitScreenState();
 }
 
-class _HabitScreenState extends State<HabitScreen> {
+class _HabitScreenState extends State<HabitScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _habitController = TextEditingController();
   final List<Habit> myHabits = [];
+  List<String> unlockedAchievements = [];
+  final int totalTrophies = 6;
 
-  // MEJORA: Exactamente 8 colores para una cuadrícula perfecta (4x2)
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
   final List<Color> _palette = [
-    const Color(0xFF10B981), // Verde
-    const Color(0xFF3B82F6), // Azul
-    const Color(0xFF8B5CF6), // Morado
-    const Color(0xFFF59E0B), // Amarillo
-    const Color(0xFFEF4444), // Rojo
-    const Color(0xFFEC4899), // Rosa
-    const Color(0xFF14B8A6), // Turquesa
-    const Color(0xFF6366F1), // Índigo (NUEVO)
+    const Color(0xFF10B981),
+    const Color(0xFF3B82F6),
+    const Color(0xFF8B5CF6),
+    const Color(0xFFF59E0B),
+    const Color(0xFFEF4444),
+    const Color(0xFFEC4899),
+    const Color(0xFF14B8A6),
+    const Color(0xFF6366F1),
   ];
 
-  // MEJORA: Exactamente 8 íconos para una cuadrícula perfecta (4x2)
   final List<IconData> _iconList = [
     Icons.local_fire_department_rounded,
     Icons.fitness_center_rounded,
@@ -98,12 +115,73 @@ class _HabitScreenState extends State<HabitScreen> {
     super.initState();
     _loadHabits();
     _loadTheme();
+    _initNotifications();
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.1).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
   }
 
   @override
   void dispose() {
+    _pulseController.dispose();
     _habitController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initNotifications() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+    flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.requestNotificationsPermission();
+    _scheduleDailyReminder();
+  }
+
+  Future<void> _scheduleDailyReminder() async {
+    await flutterLocalNotificationsPlugin.cancelAll();
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduledDate = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      20,
+      0,
+    );
+    if (scheduledDate.isBefore(now)) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'daily_reminder',
+          'Recordatorio Diario',
+          channelDescription: 'Te avisa si olvidaste tus hábitos',
+          importance: Importance.max,
+          priority: Priority.high,
+        );
+
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      0,
+      '¡No rompas tu racha! 🔥',
+      'Es hora de revisar tus hábitos de hoy. Entra y completa tu día.',
+      scheduledDate,
+      const NotificationDetails(android: androidDetails),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
   }
 
   Future<void> _loadTheme() async {
@@ -130,11 +208,13 @@ class _HabitScreenState extends State<HabitScreen> {
       myHabits.map((h) => h.toMap()).toList(),
     );
     await prefs.setString('my_habits_list', encodedData);
+    await prefs.setStringList('my_achievements', unlockedAchievements);
   }
 
   Future<void> _loadHabits() async {
     final prefs = await SharedPreferences.getInstance();
     final String? data = prefs.getString('my_habits_list');
+    unlockedAchievements = prefs.getStringList('my_achievements') ?? [];
     if (data != null) {
       setState(() {
         myHabits.clear();
@@ -159,13 +239,10 @@ class _HabitScreenState extends State<HabitScreen> {
             lastDate.month,
             lastDate.day,
           );
-
-          final difference = today.difference(lastCompletedDay).inDays;
-
-          if (difference > 0) {
+          if (today.difference(lastCompletedDay).inDays > 0) {
             habit.isCompleted = false;
             changed = true;
-            if (difference > 1) {
+            if (today.difference(lastCompletedDay).inDays > 1) {
               habit.streak = 0;
             }
           }
@@ -175,6 +252,293 @@ class _HabitScreenState extends State<HabitScreen> {
     if (changed) {
       _saveHabits();
     }
+  }
+
+  void _checkAchievements() {
+    bool newlyUnlocked = false;
+    String achievementName = "";
+
+    int completedToday = myHabits.where((h) => h.isCompleted).length;
+    int maxStreak = myHabits.isEmpty
+        ? 0
+        : myHabits.map((h) => h.streak).reduce((a, b) => a > b ? a : b);
+    final hour = DateTime.now().hour;
+
+    if (completedToday >= 1 && !unlockedAchievements.contains("primer_paso")) {
+      unlockedAchievements.add("primer_paso");
+      achievementName = "Primera Sangre 🩸";
+      newlyUnlocked = true;
+    }
+    if (maxStreak >= 3 && !unlockedAchievements.contains("racha_3")) {
+      unlockedAchievements.add("racha_3");
+      achievementName = "Disciplinado 🔥";
+      newlyUnlocked = true;
+    }
+    if (maxStreak >= 7 && !unlockedAchievements.contains("racha_7")) {
+      unlockedAchievements.add("racha_7");
+      achievementName = "Imparable 🏆";
+      newlyUnlocked = true;
+    }
+    if (maxStreak >= 14 && !unlockedAchievements.contains("racha_14")) {
+      unlockedAchievements.add("racha_14");
+      achievementName = "Titán del Hábito 👑";
+      newlyUnlocked = true;
+    }
+    if (hour < 8 &&
+        completedToday >= 1 &&
+        !unlockedAchievements.contains("madrugador")) {
+      unlockedAchievements.add("madrugador");
+      achievementName = "Madrugador ☕";
+      newlyUnlocked = true;
+    }
+    if (myHabits.length >= 3 &&
+        completedToday == myHabits.length &&
+        !unlockedAchievements.contains("perfeccion")) {
+      unlockedAchievements.add("perfeccion");
+      achievementName = "Día Perfecto ⭐";
+      newlyUnlocked = true;
+    }
+
+    if (newlyUnlocked) {
+      _saveHabits();
+      HapticFeedback.heavyImpact();
+      final isDark = themeNotifier.value == ThemeMode.dark;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                Icons.emoji_events_rounded,
+                color: Colors.amber,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  "¡Logro Desbloqueado!\n$achievementName",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: isDark
+              ? const Color(0xFF1E3A8A)
+              : const Color(0xFF1E293B),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  void _showAchievementsModal() {
+    final isDark = themeNotifier.value == ThemeMode.dark;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor.withValues(alpha: 0.9),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+            ),
+            child: DraggableScrollableSheet(
+              initialChildSize: 0.6,
+              minChildSize: 0.4,
+              maxChildSize: 0.8,
+              expand: false,
+              builder: (_, controller) {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.2)
+                              : Colors.black.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Tus Trofeos",
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFFF59E0B,
+                              ).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              "${unlockedAchievements.length}/$totalTrophies",
+                              style: const TextStyle(
+                                color: Color(0xFFF59E0B),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Expanded(
+                        child: ListView(
+                          controller: controller,
+                          children: [
+                            _buildTrophyRow(
+                              "Primera Sangre",
+                              "Completa 1 hábito",
+                              Icons.water_drop_rounded,
+                              unlockedAchievements.contains("primer_paso"),
+                              isDark,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildTrophyRow(
+                              "Madrugador",
+                              "Completa un hábito antes de las 8 AM",
+                              Icons.wb_sunny_rounded,
+                              unlockedAchievements.contains("madrugador"),
+                              isDark,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildTrophyRow(
+                              "Disciplinado",
+                              "Alcanza racha de 3",
+                              Icons.local_fire_department_rounded,
+                              unlockedAchievements.contains("racha_3"),
+                              isDark,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildTrophyRow(
+                              "Imparable",
+                              "Alcanza racha de 7",
+                              Icons.bolt_rounded,
+                              unlockedAchievements.contains("racha_7"),
+                              isDark,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildTrophyRow(
+                              "Titán del Hábito",
+                              "Alcanza racha de 14",
+                              Icons.diamond_rounded,
+                              unlockedAchievements.contains("racha_14"),
+                              isDark,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildTrophyRow(
+                              "Día Perfecto",
+                              "Completa todos (Mín. 3)",
+                              Icons.verified_rounded,
+                              unlockedAchievements.contains("perfeccion"),
+                              isDark,
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTrophyRow(
+    String title,
+    String desc,
+    IconData icon,
+    bool isUnlocked,
+    bool isDark,
+  ) {
+    final lockedBgColor = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.05);
+    final lockedIconColor = isDark ? Colors.white38 : Colors.black38;
+    final lockedTitleColor = isDark ? Colors.white70 : Colors.black54;
+    final lockedDescColor = isDark ? Colors.white38 : Colors.black38;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isUnlocked
+            ? const Color(0xFF10B981).withValues(alpha: 0.1)
+            : lockedBgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isUnlocked ? const Color(0xFF10B981) : Colors.transparent,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 30,
+            color: isUnlocked ? const Color(0xFF10B981) : lockedIconColor,
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: isUnlocked
+                        ? (isDark ? Colors.white : Colors.black87)
+                        : lockedTitleColor,
+                  ),
+                ),
+                Text(
+                  desc,
+                  style: TextStyle(
+                    color: isUnlocked
+                        ? (isDark ? Colors.white70 : Colors.black54)
+                        : lockedDescColor,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          isUnlocked
+              ? const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981))
+              : Icon(Icons.lock_rounded, color: lockedIconColor),
+        ],
+      ),
+    );
   }
 
   String _getGreeting() {
@@ -232,10 +596,10 @@ class _HabitScreenState extends State<HabitScreen> {
         }
       });
       _saveHabits();
-      Navigator.pop(context);
     }
   }
 
+  // RESTAURADO: Diálogo centrado ágil con efecto resorte y cristal.
   void _showHabitDialog({int? index}) {
     bool isEdit = index != null;
     _habitController.text = isEdit ? myHabits[index].title : "";
@@ -243,7 +607,6 @@ class _HabitScreenState extends State<HabitScreen> {
     IconData selectedIcon = isEdit
         ? IconData(myHabits[index].iconCodePoint, fontFamily: 'MaterialIcons')
         : _iconList[0];
-
     final isDark = themeNotifier.value == ThemeMode.dark;
 
     final List<Map<String, dynamic>> quickActions = [
@@ -285,246 +648,276 @@ class _HabitScreenState extends State<HabitScreen> {
       },
     ];
 
-    showDialog(
+    showGeneralDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDS) => AlertDialog(
-          backgroundColor: Theme.of(context).cardColor,
-          elevation: isDark ? 10 : 24,
-          // Hacemos el modal un poco más ancho para que la cuadrícula respire
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 24,
+      barrierDismissible: true,
+      barrierLabel: '',
+      transitionDuration: const Duration(milliseconds: 250),
+      barrierColor: Colors.black.withValues(alpha: 0.3),
+      pageBuilder: (context, anim1, anim2) => Container(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        final scaleCurve = CurvedAnimation(
+          parent: anim1,
+          curve: Curves.easeOutBack,
+        ).value;
+        return BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: 5.0 * anim1.value,
+            sigmaY: 5.0 * anim1.value,
           ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          title: Text(
-            isEdit ? "Editar Hábito" : "Nuevo Hábito",
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black87,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: SizedBox(
-              width:
-                  MediaQuery.of(context).size.width * 0.85, // Ancho optimizado
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: _habitController,
-                    autofocus: !isEdit,
-                    textCapitalization: TextCapitalization.sentences,
-                    maxLength: 40, // Límite para evitar textos rotos
+          child: Transform.scale(
+            scale: scaleCurve,
+            child: FadeTransition(
+              opacity: anim1,
+              child: StatefulBuilder(
+                builder: (context, setDS) => AlertDialog(
+                  backgroundColor: Theme.of(
+                    context,
+                  ).cardColor.withValues(alpha: 0.95),
+                  elevation: isDark ? 10 : 24,
+                  insetPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 24,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  title: Text(
+                    isEdit ? "Editar Hábito" : "Nuevo Hábito",
                     style: TextStyle(
                       color: isDark ? Colors.white : Colors.black87,
-                    ),
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      hintText: "Ej. Leer 10 páginas",
-                      filled: true,
-                      fillColor: isDark
-                          ? Colors.white10
-                          : Colors.black.withValues(alpha: 0.03),
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-
-                  // Fichas rápidas visibles siempre (Editar y Nuevo)
-                  const SizedBox(height: 5),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: quickActions
-                          .map(
-                            (action) => Padding(
-                              padding: const EdgeInsets.only(right: 8.0),
-                              child: ActionChip(
-                                label: Text(action["label"]),
-                                backgroundColor: isDark
-                                    ? Colors.white10
-                                    : Colors.black.withValues(alpha: 0.05),
-                                side: BorderSide.none,
-                                onPressed: () {
-                                  HapticFeedback.mediumImpact();
-                                  if (isEdit) {
-                                    setDS(() {
-                                      _habitController.text = action["title"];
-                                      selectedColor = action["color"];
-                                      selectedIcon = action["icon"];
-                                    });
-                                  } else {
-                                    _performSave(
-                                      action["title"],
-                                      action["color"],
-                                      action["icon"],
-                                    );
-                                  }
-                                },
+                  content: SingleChildScrollView(
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width * 0.85,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextField(
+                            controller: _habitController,
+                            autofocus: !isEdit,
+                            textCapitalization: TextCapitalization.sentences,
+                            maxLength: 40,
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
+                              hintText: "Ej. Leer 10 páginas",
+                              filled: true,
+                              fillColor: isDark
+                                  ? Colors.white10
+                                  : Colors.black.withValues(alpha: 0.03),
                             ),
-                          )
-                          .toList(),
+                          ),
+                          const SizedBox(height: 5),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: quickActions
+                                  .map(
+                                    (action) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        right: 8.0,
+                                      ),
+                                      child: ActionChip(
+                                        label: Text(action["label"]),
+                                        backgroundColor: isDark
+                                            ? Colors.white10
+                                            : Colors.black.withValues(
+                                                alpha: 0.05,
+                                              ),
+                                        side: BorderSide.none,
+                                        onPressed: () {
+                                          HapticFeedback.mediumImpact();
+                                          if (isEdit) {
+                                            setDS(() {
+                                              _habitController.text =
+                                                  action["title"];
+                                              selectedColor = action["color"];
+                                              selectedIcon = action["icon"];
+                                            });
+                                          } else {
+                                            _performSave(
+                                              action["title"],
+                                              action["color"],
+                                              action["icon"],
+                                            );
+                                            Navigator.pop(context);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                          const SizedBox(height: 25),
+                          Text(
+                            "Color",
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.black54,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 15),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 4,
+                                  mainAxisSpacing: 16,
+                                  crossAxisSpacing: 16,
+                                ),
+                            itemCount: _palette.length,
+                            itemBuilder: (context, idx) {
+                              final c = _palette[idx];
+                              return GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setDS(() => selectedColor = c);
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color:
+                                          selectedColor.toARGB32() ==
+                                              c.toARGB32()
+                                          ? c
+                                          : Colors.transparent,
+                                      width: 3,
+                                    ),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(3.0),
+                                    child: CircleAvatar(
+                                      backgroundColor: c,
+                                      child:
+                                          selectedColor.toARGB32() ==
+                                              c.toARGB32()
+                                          ? const Icon(
+                                              Icons.check,
+                                              size: 20,
+                                              color: Colors.white,
+                                            )
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 25),
+                          Text(
+                            "Ícono",
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.black54,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 15),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 4,
+                                  mainAxisSpacing: 12,
+                                  crossAxisSpacing: 12,
+                                ),
+                            itemCount: _iconList.length,
+                            itemBuilder: (context, idx) {
+                              final iconData = _iconList[idx];
+                              return GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setDS(() => selectedIcon = iconData);
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  decoration: BoxDecoration(
+                                    color: selectedIcon == iconData
+                                        ? selectedColor.withValues(alpha: 0.15)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: selectedIcon == iconData
+                                          ? selectedColor
+                                          : Colors.transparent,
+                                      width: 2.5,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    iconData,
+                                    color: selectedIcon == iconData
+                                        ? selectedColor
+                                        : (isDark
+                                              ? Colors.white54
+                                              : Colors.black54),
+                                    size: 28,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-
-                  const SizedBox(height: 25),
-                  Text(
-                    "Color",
-                    style: TextStyle(
-                      color: isDark ? Colors.white70 : Colors.black54,
-                      fontWeight: FontWeight.bold,
+                  actionsAlignment: MainAxisAlignment.end,
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        FocusScope.of(context).unfocus();
+                        Navigator.pop(context);
+                      },
+                      child: const Text(
+                        "Cancelar",
+                        style: TextStyle(color: Colors.grey),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 15),
-
-                  // MEJORA: Cuadrícula Geométrica Perfecta para Colores (4x2)
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          mainAxisSpacing: 16,
-                          crossAxisSpacing: 16,
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                    itemCount: _palette.length,
-                    itemBuilder: (context, idx) {
-                      final c = _palette[idx];
-                      return GestureDetector(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          setDS(() => selectedColor = c);
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: selectedColor.toARGB32() == c.toARGB32()
-                                  ? c
-                                  : Colors.transparent,
-                              width: 3,
-                            ),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(3.0),
-                            child: CircleAvatar(
-                              backgroundColor: c,
-                              child: selectedColor.toARGB32() == c.toARGB32()
-                                  ? const Icon(
-                                      Icons.check,
-                                      size: 20,
-                                      color: Colors.white,
-                                    )
-                                  : null,
-                            ),
-                          ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
                         ),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 25),
-                  Text(
-                    "Ícono",
-                    style: TextStyle(
-                      color: isDark ? Colors.white70 : Colors.black54,
-                      fontWeight: FontWeight.bold,
+                      ),
+                      onPressed: () {
+                        _performSave(
+                          _habitController.text,
+                          selectedColor,
+                          selectedIcon,
+                          index: index,
+                        );
+                        if (isEdit) Navigator.pop(context);
+                      },
+                      child: Text(
+                        isEdit ? "Guardar" : "Añadir",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 15),
-
-                  // MEJORA: Cuadrícula Geométrica Perfecta para Íconos (4x2)
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                        ),
-                    itemCount: _iconList.length,
-                    itemBuilder: (context, idx) {
-                      final iconData = _iconList[idx];
-                      return GestureDetector(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          setDS(() => selectedIcon = iconData);
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          decoration: BoxDecoration(
-                            color: selectedIcon == iconData
-                                ? selectedColor.withValues(alpha: 0.15)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: selectedIcon == iconData
-                                  ? selectedColor
-                                  : Colors.transparent,
-                              width: 2.5,
-                            ),
-                          ),
-                          child: Icon(
-                            iconData,
-                            color: selectedIcon == iconData
-                                ? selectedColor
-                                : (isDark ? Colors.white54 : Colors.black54),
-                            size: 28,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-          actionsAlignment: MainAxisAlignment.end,
-          actions: [
-            TextButton(
-              onPressed: () {
-                FocusScope.of(context).unfocus();
-                Navigator.pop(context);
-              },
-              child: const Text(
-                "Cancelar",
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-              ),
-              onPressed: () => _performSave(
-                _habitController.text,
-                selectedColor,
-                selectedIcon,
-                index: index,
-              ),
-              child: Text(
-                isEdit ? "Guardar" : "Añadir",
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -550,6 +943,15 @@ class _HabitScreenState extends State<HabitScreen> {
     final textColor = isDark ? Colors.white : Colors.black87;
     final subTextColor = isDark ? Colors.white70 : Colors.black54;
 
+    // CONSERVADO: Colores para el "Modo Dios" (100% completado)
+    final bool isPerfectDay = progress == 1.0 && myHabits.isNotEmpty;
+    final Color barColor = isPerfectDay
+        ? Colors.amber
+        : const Color(0xFF10B981);
+    final Color barBgColor = isPerfectDay
+        ? Colors.amber.withValues(alpha: 0.1)
+        : const Color(0xFF10B981).withValues(alpha: 0.15);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -558,8 +960,17 @@ class _HabitScreenState extends State<HabitScreen> {
         ),
         actions: [
           IconButton(
+            icon: Icon(
+              Icons.emoji_events_rounded,
+              color: isDark ? Colors.amber : Colors.amber[700],
+            ),
+            onPressed: _showAchievementsModal,
+            tooltip: "Ver Logros",
+          ),
+          IconButton(
             icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
             onPressed: _toggleTheme,
+            tooltip: "Cambiar Tema",
           ),
         ],
       ),
@@ -597,9 +1008,9 @@ class _HabitScreenState extends State<HabitScreen> {
                     ),
                     Text(
                       statusMessage,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF10B981),
+                        color: barColor,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -617,19 +1028,22 @@ class _HabitScreenState extends State<HabitScreen> {
                         color: textColor,
                       ),
                     ),
-                    Container(
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 500),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        color: barBgColor,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         "$completed / ${myHabits.length}",
-                        style: const TextStyle(
-                          color: Color(0xFF059669),
+                        style: TextStyle(
+                          color: isPerfectDay
+                              ? Colors.amber[700]
+                              : const Color(0xFF059669),
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -641,33 +1055,48 @@ class _HabitScreenState extends State<HabitScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: TweenAnimationBuilder<double>(
-                          tween: Tween<double>(begin: 0, end: progress),
-                          duration: const Duration(milliseconds: 600),
-                          curve: Curves.easeOutCubic,
-                          builder: (context, value, _) {
-                            return LinearProgressIndicator(
-                              value: value,
-                              backgroundColor: isDark
-                                  ? Colors.white10
-                                  : Colors.black.withValues(alpha: 0.05),
-                              color: const Color(0xFF10B981),
-                              minHeight: 12,
-                            );
-                          },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 500),
+                        decoration: isDark && progress > 0
+                            ? BoxDecoration(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: barColor.withValues(alpha: 0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              )
+                            : null,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween<double>(begin: 0, end: progress),
+                            duration: const Duration(milliseconds: 600),
+                            curve: Curves.easeOutCubic,
+                            builder: (context, value, _) {
+                              return LinearProgressIndicator(
+                                value: value,
+                                backgroundColor: isDark
+                                    ? Colors.white10
+                                    : Colors.black.withValues(alpha: 0.05),
+                                color: barColor,
+                                minHeight: 12,
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Text(
-                      "${(progress * 100).toInt()}%",
-                      style: const TextStyle(
-                        color: Color(0xFF10B981),
+                    AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 500),
+                      style: TextStyle(
+                        color: barColor,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
+                      child: Text("${(progress * 100).toInt()}%"),
                     ),
                   ],
                 ),
@@ -681,10 +1110,13 @@ class _HabitScreenState extends State<HabitScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.rocket_launch_rounded,
-                          size: 80,
-                          color: subTextColor.withValues(alpha: 0.3),
+                        ScaleTransition(
+                          scale: _pulseAnimation,
+                          child: Icon(
+                            Icons.rocket_launch_rounded,
+                            size: 80,
+                            color: subTextColor.withValues(alpha: 0.3),
+                          ),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -709,9 +1141,7 @@ class _HabitScreenState extends State<HabitScreen> {
                     onReorder: (oldIdx, newIdx) {
                       HapticFeedback.heavyImpact();
                       setState(() {
-                        if (newIdx > oldIdx) {
-                          newIdx--;
-                        }
+                        if (newIdx > oldIdx) newIdx--;
                         final item = myHabits.removeAt(oldIdx);
                         myHabits.insert(newIdx, item);
                       });
@@ -737,6 +1167,14 @@ class _HabitScreenState extends State<HabitScreen> {
                         ),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
+                          border: habit.isCompleted
+                              ? Border.all(
+                                  color: habit.dynamicColor.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                  width: 1.5,
+                                )
+                              : null,
                           boxShadow: (isDark || habit.isCompleted)
                               ? []
                               : [
@@ -761,11 +1199,8 @@ class _HabitScreenState extends State<HabitScreen> {
                             },
                             onDismissed: (_) {
                               final deletedHabit = myHabits[index];
-                              setState(() {
-                                myHabits.removeAt(index);
-                              });
+                              setState(() => myHabits.removeAt(index));
                               _saveHabits();
-
                               ScaffoldMessenger.of(context).clearSnackBars();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -787,9 +1222,12 @@ class _HabitScreenState extends State<HabitScreen> {
                                     label: "DESHACER",
                                     textColor: const Color(0xFF34D399),
                                     onPressed: () {
-                                      setState(() {
-                                        myHabits.insert(index, deletedHabit);
-                                      });
+                                      setState(
+                                        () => myHabits.insert(
+                                          index,
+                                          deletedHabit,
+                                        ),
+                                      );
                                       _saveHabits();
                                     },
                                   ),
@@ -831,6 +1269,7 @@ class _HabitScreenState extends State<HabitScreen> {
                                     }
                                   });
                                   _saveHabits();
+                                  _checkAchievements();
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.all(20),
