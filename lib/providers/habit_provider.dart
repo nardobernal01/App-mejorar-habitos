@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'package:in_app_review/in_app_review.dart';
 import '../models/habit_model.dart';
 
 enum AppThemeMode {
@@ -25,9 +26,16 @@ class HabitProvider extends ChangeNotifier {
   List<String> unlockedAchievements = [];
   String currentFilter = "Todas";
 
+  String userName = "Nardo";
+  String userAge = "55";
+  String userGender = "Masculino";
+  String? userPhotoPath;
+
+  Map<DateTime, int> heatmapDatasets = {};
   int playerLevel = 1;
   int playerXP = 0;
   final int xpPerLevel = 500;
+  int appLaunches = 0;
 
   bool isAuthenticated = false;
   bool useBiometrics = false;
@@ -58,9 +66,29 @@ class HabitProvider extends ChangeNotifier {
     useBiometrics = prefs.getBool('useBiometrics') ?? false;
     isPremiumUnlocked = prefs.getBool('isPremiumUnlocked') ?? false;
 
-    unlockedAchievements = prefs.getStringList('my_achievements') ?? [];
-    final String? data = prefs.getString('my_habits_list');
+    userName = prefs.getString('userName') ?? "Nardo";
+    userAge = prefs.getString('userAge') ?? "55";
+    userGender = prefs.getString('userGender') ?? "Masculino";
+    userPhotoPath = prefs.getString('userPhotoPath');
 
+    appLaunches = prefs.getInt('appLaunches') ?? 0;
+    appLaunches++;
+    prefs.setInt('appLaunches', appLaunches);
+    if (appLaunches == 3) {
+      _requestAppReview();
+    }
+
+    unlockedAchievements = prefs.getStringList('my_achievements') ?? [];
+
+    final String? heatData = prefs.getString('heatmap_data');
+    if (heatData != null) {
+      final Map<String, dynamic> decodedHeat = json.decode(heatData);
+      heatmapDatasets = decodedHeat.map(
+        (key, value) => MapEntry(DateTime.parse(key), value as int),
+      );
+    }
+
+    final String? data = prefs.getString('my_habits_list');
     if (data != null) {
       myHabits = (json.decode(data) as List)
           .map((i) => Habit.fromMap(i))
@@ -72,6 +100,13 @@ class HabitProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _requestAppReview() async {
+    final InAppReview inAppReview = InAppReview.instance;
+    if (await inAppReview.isAvailable()) {
+      inAppReview.requestReview();
+    }
+  }
+
   Future<void> saveData() async {
     final prefs = await SharedPreferences.getInstance();
     prefs.setString('appTheme', currentTheme.toString());
@@ -79,6 +114,18 @@ class HabitProvider extends ChangeNotifier {
     prefs.setInt('playerXP', playerXP);
     prefs.setBool('useBiometrics', useBiometrics);
     prefs.setBool('isPremiumUnlocked', isPremiumUnlocked);
+
+    prefs.setString('userName', userName);
+    prefs.setString('userAge', userAge);
+    prefs.setString('userGender', userGender);
+    if (userPhotoPath != null) {
+      prefs.setString('userPhotoPath', userPhotoPath!);
+    }
+
+    final Map<String, int> heatStringMap = heatmapDatasets.map(
+      (key, value) => MapEntry(key.toIso8601String(), value),
+    );
+    prefs.setString('heatmap_data', json.encode(heatStringMap));
 
     final String encodedData = json.encode(
       myHabits.map((h) => h.toMap()).toList(),
@@ -88,54 +135,17 @@ class HabitProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- MOTOR DE RESPALDO (BACKUP) ---
-  String exportBackup() {
-    final data = {
-      'level': playerLevel,
-      'xp': playerXP,
-      'theme': currentTheme.name,
-      'premium': isPremiumUnlocked,
-      'biometrics': useBiometrics,
-      'achievements': unlockedAchievements,
-      'habits': myHabits.map((h) => h.toMap()).toList(),
-    };
-    final jsonString = json.encode(data);
-    final bytes = utf8.encode(jsonString);
-    return base64.encode(bytes);
-  }
-
-  bool importBackup(String base64String) {
-    try {
-      final bytes = base64.decode(base64String);
-      final jsonString = utf8.decode(bytes);
-      final data = json.decode(jsonString) as Map<String, dynamic>;
-
-      playerLevel = data['level'] ?? 1;
-      playerXP = data['xp'] ?? 0;
-
-      final themeName = data['theme'] ?? 'dark';
-      currentTheme = AppThemeMode.values.firstWhere(
-        (e) => e.name == themeName,
-        orElse: () => AppThemeMode.dark,
-      );
-
-      isPremiumUnlocked = data['premium'] ?? false;
-      useBiometrics = data['biometrics'] ?? false;
-
-      if (data['achievements'] != null) {
-        unlockedAchievements = List<String>.from(data['achievements']);
-      }
-      if (data['habits'] != null) {
-        myHabits = (data['habits'] as List)
-            .map((i) => Habit.fromMap(i))
-            .toList();
-      }
-
-      saveData();
-      return true;
-    } catch (e) {
-      return false;
-    }
+  void updateProfile(
+    String name,
+    String age,
+    String gender,
+    String? photoPath,
+  ) {
+    userName = name;
+    userAge = age;
+    userGender = gender;
+    if (photoPath != null) userPhotoPath = photoPath;
+    saveData();
   }
 
   void unlockPremium() {
@@ -155,7 +165,7 @@ class HabitProvider extends ChangeNotifier {
           await _localAuth.isDeviceSupported();
       if (canAuth) {
         isAuthenticated = await _localAuth.authenticate(
-          localizedReason: 'Ingresa tu huella para acceder a VitalHabit',
+          localizedReason: 'Huella para Bloom Your Day',
           options: const AuthenticationOptions(
             stickyAuth: true,
             biometricOnly: false,
@@ -187,12 +197,21 @@ class HabitProvider extends ChangeNotifier {
 
   void toggleHabitCompletion(Habit habit, BuildContext context) {
     habit.isCompleted = !habit.isCompleted;
+    final today = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
     if (habit.isCompleted) {
       habit.streak++;
       habit.lastCompletedDate = DateTime.now();
+      heatmapDatasets[today] = (heatmapDatasets[today] ?? 0) + 1;
       gainXP(50, context);
     } else {
       habit.streak--;
+      if (heatmapDatasets.containsKey(today) && heatmapDatasets[today]! > 0) {
+        heatmapDatasets[today] = heatmapDatasets[today]! - 1;
+      }
     }
     saveData();
     checkAchievements(context);
@@ -204,7 +223,11 @@ class HabitProvider extends ChangeNotifier {
     int iconCode,
     String? reminderStr, {
     int? index,
+    List<int>? activeDays,
+    bool isAlarm = false,
+    DateTime? specificDate,
   }) {
+    final days = activeDays ?? [1, 2, 3, 4, 5, 6, 7];
     if (index != null) {
       if (reminderStr == null && myHabits[index].reminderTime != null) {
         cancelHabitReminder(myHabits[index]);
@@ -213,7 +236,9 @@ class HabitProvider extends ChangeNotifier {
       myHabits[index].dynamicColor = color;
       myHabits[index].iconCodePoint = iconCode;
       myHabits[index].reminderTime = reminderStr;
-
+      myHabits[index].activeDays = days;
+      myHabits[index].isAlarm = isAlarm;
+      myHabits[index].specificDate = specificDate;
       if (reminderStr != null) {
         scheduleHabitReminder(myHabits[index]);
       }
@@ -223,9 +248,11 @@ class HabitProvider extends ChangeNotifier {
         color: color,
         iconCodePoint: iconCode,
         reminderTime: reminderStr,
+        activeDays: days,
+        isAlarm: isAlarm,
+        specificDate: specificDate,
       );
       myHabits.add(newHabit);
-
       if (reminderStr != null) {
         scheduleHabitReminder(newHabit);
       }
@@ -322,11 +349,9 @@ class HabitProvider extends ChangeNotifier {
           lastDate.month,
           lastDate.day,
         );
-
         if (today.difference(lastCompletedDay).inDays > 0) {
           habit.isCompleted = false;
           changed = true;
-
           if (today.difference(lastCompletedDay).inDays > 1) {
             habit.streak = 0;
           }
@@ -417,36 +442,51 @@ class HabitProvider extends ChangeNotifier {
     }
     final parts = habit.reminderTime!.split(":");
     final now = tz.TZDateTime.now(tz.local);
-    var scheduledDate = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-    );
+    tz.TZDateTime scheduledDate;
 
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    if (habit.specificDate != null) {
+      scheduledDate = tz.TZDateTime(
+        tz.local,
+        habit.specificDate!.year,
+        habit.specificDate!.month,
+        habit.specificDate!.day,
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+      );
+    } else {
+      scheduledDate = tz.TZDateTime(
+        tz.local,
+        now.year,
+        now.month,
+        now.day,
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+      );
+      if (scheduledDate.isBefore(now)) {
+        scheduledDate = scheduledDate.add(const Duration(days: 1));
+      }
     }
 
-    const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
-          'habit_reminders',
-          'Recordatorios',
-          importance: Importance.max,
-          priority: Priority.high,
-        );
+    final androidDetails = AndroidNotificationDetails(
+      'habit_reminders',
+      'Recordatorios',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      fullScreenIntent: habit.isAlarm,
+    );
     await flutterLocalNotificationsPlugin.zonedSchedule(
       habit.id.hashCode,
-      '¡Es hora de tu hábito! 🔔',
+      habit.isAlarm ? '⏰ ¡EVENTO / ALARMA!' : '¡Es hora! 🔔',
       'Toca hacer: ${habit.title}',
       scheduledDate,
-      const NotificationDetails(android: androidDetails),
+      NotificationDetails(android: androidDetails),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
+      matchDateTimeComponents: habit.specificDate != null
+          ? null
+          : DateTimeComponents.time,
     );
   }
 

@@ -1,53 +1,76 @@
 import 'package:flutter/material.dart';
 
 class Habit {
-  final String id;
+  String id;
   String title;
-  Color dynamicColor;
   int iconCodePoint;
-  bool isCompleted;
+  int colorValue;
   int streak;
+  bool isCompleted;
   DateTime? lastCompletedDate;
   String? reminderTime;
+
+  List<int> activeDays;
+  bool isAlarm;
+  DateTime? specificDate; // ¡NUEVO! Fecha específica en el calendario
 
   Habit({
     String? id,
     required this.title,
     required Color color,
     required this.iconCodePoint,
-    this.isCompleted = false,
     this.streak = 0,
+    this.isCompleted = false,
     this.lastCompletedDate,
     this.reminderTime,
+    List<int>? activeDays,
+    this.isAlarm = false,
+    this.specificDate,
   }) : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-       dynamicColor = color;
+       colorValue = color.toARGB32(),
+       activeDays = activeDays ?? [1, 2, 3, 4, 5, 6, 7];
+
+  Color get dynamicColor => Color(colorValue);
+
+  set dynamicColor(Color color) {
+    colorValue = color.toARGB32();
+  }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'title': title,
-      // CORRECCIÓN PREMIUM: Usamos el nuevo estándar de Flutter en lugar de .value
-      'color': dynamicColor.toARGB32(),
       'iconCodePoint': iconCodePoint,
-      'isCompleted': isCompleted,
+      'colorValue': colorValue,
       'streak': streak,
+      'isCompleted': isCompleted,
       'lastCompletedDate': lastCompletedDate?.toIso8601String(),
       'reminderTime': reminderTime,
+      'activeDays': activeDays,
+      'isAlarm': isAlarm,
+      'specificDate': specificDate?.toIso8601String(),
     };
   }
 
   factory Habit.fromMap(Map<String, dynamic> map) {
     return Habit(
-      id: map['id'] as String?,
-      title: map['title'] ?? '',
-      color: Color(map['color'] ?? 0xFF10B981),
-      iconCodePoint: map['iconCodePoint'] ?? Icons.star.codePoint,
-      isCompleted: map['isCompleted'] ?? false,
-      streak: map['streak'] ?? 0,
+      id: map['id'],
+      title: map['title'],
+      color: Color(map['colorValue']),
+      iconCodePoint: map['iconCodePoint'],
+      streak: map['streak'],
+      isCompleted: map['isCompleted'],
       lastCompletedDate: map['lastCompletedDate'] != null
           ? DateTime.parse(map['lastCompletedDate'])
           : null,
       reminderTime: map['reminderTime'],
+      activeDays: map['activeDays'] != null
+          ? List<int>.from(map['activeDays'])
+          : [1, 2, 3, 4, 5, 6, 7],
+      isAlarm: map['isAlarm'] ?? false,
+      specificDate: map['specificDate'] != null
+          ? DateTime.parse(map['specificDate'])
+          : null,
     );
   }
 }

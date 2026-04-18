@@ -1,10 +1,11 @@
-name: vital_habit
-description: "A new Flutter project."
+name: bloom_your_day
+description: "Bloom Your Day - Habit Tracker"
 publish_to: "none"
+
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.11.4
+  sdk: "^3.11.0"
 
 dependencies:
   flutter:
@@ -18,14 +19,30 @@ dependencies:
   screenshot: ^3.0.0
   share_plus: ^7.2.1
   path_provider: ^2.1.2
-  provider: ^6.1.5+1
+  provider: ^6.1.2
+  image_picker: ^1.0.7
+  flutter_heatmap_calendar: ^1.0.5
+  url_launcher: ^6.2.6
+  in_app_review: ^2.0.9
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
 
 flutter:
   uses-material-design: true
   assets:
-    - assets/animations/
+    - assets/animations/success.json
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+
+flutter_native_splash:
+  color: "#F4F7F9"
+  color_dark: "#0F172A"
+  image: "assets/icon/app_icon.png"
