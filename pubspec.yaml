@@ -24,6 +24,10 @@ dependencies:
   flutter_heatmap_calendar: ^1.0.5
   url_launcher: ^6.2.6
   in_app_review: ^2.0.9
+  firebase_core: ^4.7.0
+  firebase_auth: ^6.4.0
+  cloud_firestore: ^6.3.0
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:

@@ -1,11 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:local_auth/local_auth.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:in_app_review/in_app_review.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../models/habit_model.dart';
 
 enum AppThemeMode {
@@ -21,118 +19,60 @@ enum AppThemeMode {
   watercolor,
 }
 
-class HabitProvider extends ChangeNotifier {
-  List<Habit> myHabits = [];
-  List<String> unlockedAchievements = [];
-  String currentFilter = "Todas";
+class HabitProvider with ChangeNotifier {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  String userName = "Nardo";
-  String userAge = "55";
-  String userGender = "Masculino";
-  String? userPhotoPath;
+  List<Habit> _myHabits = [];
+  String _userName = "Usuario";
+  String _currentFilter = "Todas";
+  bool _isPremiumUnlocked = false;
+  bool _isAuthenticated = false;
+  AppThemeMode _currentTheme = AppThemeMode.light;
 
-  Map<DateTime, int> heatmapDatasets = {};
-  int playerLevel = 1;
-  int playerXP = 0;
-  final int xpPerLevel = 500;
-  int appLaunches = 0;
+  String _userAge = "25";
+  String _userGender = "Prefiero no decirlo";
+  String? _userPhotoPath;
+  bool _useBiometrics = false;
+  int _playerXP = 0;
+  final int _xpPerLevel = 100;
+  final Map<DateTime, int> _heatmapDatasets = {};
 
-  bool isAuthenticated = false;
-  bool useBiometrics = false;
-  final LocalAuthentication _localAuth = LocalAuthentication();
+  String get userAge => _userAge;
+  String get userGender => _userGender;
+  String? get userPhotoPath => _userPhotoPath;
+  bool get useBiometrics => _useBiometrics;
+  int get playerXP => _playerXP;
+  int get xpPerLevel => _xpPerLevel;
+  Map<DateTime, int> get heatmapDatasets => _heatmapDatasets;
 
-  AppThemeMode currentTheme = AppThemeMode.dark;
-  bool isPremiumUnlocked = false;
+  List<Habit> get myHabits => _myHabits;
+  String get userName => _userName;
+  String get currentFilter => _currentFilter;
+  bool get isPremiumUnlocked => _isPremiumUnlocked;
+  bool get isAuthenticated => _isAuthenticated;
+  AppThemeMode get currentTheme => _currentTheme;
 
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
+  String get playerLevel =>
+      (_myHabits.fold(0, (int total, h) => total + h.streak) ~/ 10 + 1)
+          .toString();
 
   HabitProvider() {
-    _loadData();
-    _initNotifications();
-  }
-
-  Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    final themeStr = prefs.getString('appTheme') ?? 'dark';
-    currentTheme = AppThemeMode.values.firstWhere(
-      (e) => e.toString() == themeStr,
-      orElse: () => AppThemeMode.dark,
-    );
-
-    playerLevel = prefs.getInt('playerLevel') ?? 1;
-    playerXP = prefs.getInt('playerXP') ?? 0;
-    useBiometrics = prefs.getBool('useBiometrics') ?? false;
-    isPremiumUnlocked = prefs.getBool('isPremiumUnlocked') ?? false;
-
-    userName = prefs.getString('userName') ?? "Nardo";
-    userAge = prefs.getString('userAge') ?? "55";
-    userGender = prefs.getString('userGender') ?? "Masculino";
-    userPhotoPath = prefs.getString('userPhotoPath');
-
-    appLaunches = prefs.getInt('appLaunches') ?? 0;
-    appLaunches++;
-    prefs.setInt('appLaunches', appLaunches);
-    if (appLaunches == 3) {
-      _requestAppReview();
-    }
-
-    unlockedAchievements = prefs.getStringList('my_achievements') ?? [];
-
-    final String? heatData = prefs.getString('heatmap_data');
-    if (heatData != null) {
-      final Map<String, dynamic> decodedHeat = json.decode(heatData);
-      heatmapDatasets = decodedHeat.map(
-        (key, value) => MapEntry(DateTime.parse(key), value as int),
-      );
-    }
-
-    final String? data = prefs.getString('my_habits_list');
-    if (data != null) {
-      myHabits = (json.decode(data) as List)
-          .map((i) => Habit.fromMap(i))
-          .toList();
-      _checkNewDay();
-    }
-
-    await authenticate();
-    notifyListeners();
-  }
-
-  Future<void> _requestAppReview() async {
-    final InAppReview inAppReview = InAppReview.instance;
-    if (await inAppReview.isAvailable()) {
-      inAppReview.requestReview();
-    }
-  }
-
-  Future<void> saveData() async {
-    final prefs = await SharedPreferences.getInstance();
-    prefs.setString('appTheme', currentTheme.toString());
-    prefs.setInt('playerLevel', playerLevel);
-    prefs.setInt('playerXP', playerXP);
-    prefs.setBool('useBiometrics', useBiometrics);
-    prefs.setBool('isPremiumUnlocked', isPremiumUnlocked);
-
-    prefs.setString('userName', userName);
-    prefs.setString('userAge', userAge);
-    prefs.setString('userGender', userGender);
-    if (userPhotoPath != null) {
-      prefs.setString('userPhotoPath', userPhotoPath!);
-    }
-
-    final Map<String, int> heatStringMap = heatmapDatasets.map(
-      (key, value) => MapEntry(key.toIso8601String(), value),
-    );
-    prefs.setString('heatmap_data', json.encode(heatStringMap));
-
-    final String encodedData = json.encode(
-      myHabits.map((h) => h.toMap()).toList(),
-    );
-    prefs.setString('my_habits_list', encodedData);
-    prefs.setStringList('my_achievements', unlockedAchievements);
-    notifyListeners();
+    _loadLocalData();
+    _auth.authStateChanges().listen((User? user) {
+      if (user != null) {
+        _userName = user.displayName ?? "Usuario";
+        _userPhotoPath = user.photoURL;
+        _isAuthenticated = true;
+        _loadHabitsFromFirestore();
+        notifyListeners();
+      } else {
+        _isAuthenticated = false;
+        _myHabits = [];
+        notifyListeners();
+      }
+    });
   }
 
   void updateProfile(
@@ -141,356 +81,290 @@ class HabitProvider extends ChangeNotifier {
     String gender,
     String? photoPath,
   ) {
-    userName = name;
-    userAge = age;
-    userGender = gender;
-    if (photoPath != null) userPhotoPath = photoPath;
-    saveData();
+    if (name.isNotEmpty) {
+      _userName = name;
+    }
+    _userAge = age;
+    _userGender = gender;
+    if (photoPath != null) {
+      _userPhotoPath = photoPath;
+    }
+    _saveLocalData();
+    notifyListeners();
   }
 
-  void unlockPremium() {
-    isPremiumUnlocked = true;
-    saveData();
+  // ==============================================================
+  // 🔐 AUTENTICACIÓN POR CORREO Y CONTRASEÑA (Con llaves estrictas)
+  // ==============================================================
+  Future<String?> signInWithEmail(String email, String password) async {
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        return "No se encontró ningún usuario con ese correo.";
+      }
+      if (e.code == 'wrong-password') {
+        return "Contraseña incorrecta.";
+      }
+      if (e.code == 'invalid-email') {
+        return "El formato del correo es inválido.";
+      }
+      return "Error al iniciar sesión: ${e.message}";
+    } catch (e) {
+      return "Error desconocido.";
+    }
   }
+
+  Future<String?> registerWithEmail(
+    String email,
+    String password,
+    String name,
+    String age,
+    String gender,
+  ) async {
+    try {
+      UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(email: email, password: password);
+
+      if (userCredential.user != null) {
+        await userCredential.user!.updateDisplayName(name);
+        _userName = name;
+        _userAge = age;
+        _userGender = gender;
+        await _saveLocalData();
+      }
+      return null;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'email-already-in-use') {
+        return "Este correo ya está registrado.";
+      }
+      if (e.code == 'weak-password') {
+        return "La contraseña debe tener al menos 6 caracteres.";
+      }
+      return "Error al crear cuenta: ${e.message}";
+    } catch (e) {
+      return "Error desconocido.";
+    }
+  }
+  // ==============================================================
 
   Future<void> authenticate() async {
-    if (!useBiometrics) {
-      isAuthenticated = true;
-      notifyListeners();
-      return;
-    }
     try {
-      final bool canAuth =
-          await _localAuth.canCheckBiometrics ||
-          await _localAuth.isDeviceSupported();
-      if (canAuth) {
-        isAuthenticated = await _localAuth.authenticate(
-          localizedReason: 'Huella para Bloom Your Day',
-          options: const AuthenticationOptions(
-            stickyAuth: true,
-            biometricOnly: false,
-          ),
-        );
-      } else {
-        isAuthenticated = true;
+      await _googleSignIn.initialize();
+      await _googleSignIn.signOut();
+      final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+      );
+
+      final UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        _userName = user.displayName ?? "Usuario";
+        _userPhotoPath = user.photoURL;
+        _isAuthenticated = true;
+        await _saveLocalData();
+        await _loadHabitsFromFirestore();
+        notifyListeners();
       }
     } catch (e) {
-      isAuthenticated = true;
+      debugPrint("Error en Google Sign-In: $e");
     }
+  }
+
+  Future<void> signOut() async {
+    await _googleSignIn.signOut();
+    await _auth.signOut();
+    _isAuthenticated = false;
+    _myHabits = [];
     notifyListeners();
   }
 
-  void toggleBiometrics(bool value) {
-    useBiometrics = value;
-    saveData();
-  }
-
-  void setTheme(AppThemeMode mode) {
-    currentTheme = mode;
-    saveData();
-  }
-
-  void setFilter(String filter) {
-    currentFilter = filter;
-    notifyListeners();
-  }
-
-  void toggleHabitCompletion(Habit habit, BuildContext context) {
-    habit.isCompleted = !habit.isCompleted;
-    final today = DateTime(
-      DateTime.now().year,
-      DateTime.now().month,
-      DateTime.now().day,
-    );
-    if (habit.isCompleted) {
-      habit.streak++;
-      habit.lastCompletedDate = DateTime.now();
-      heatmapDatasets[today] = (heatmapDatasets[today] ?? 0) + 1;
-      gainXP(50, context);
-    } else {
-      habit.streak--;
-      if (heatmapDatasets.containsKey(today) && heatmapDatasets[today]! > 0) {
-        heatmapDatasets[today] = heatmapDatasets[today]! - 1;
-      }
+  Future<void> _loadHabitsFromFirestore() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return;
     }
-    saveData();
-    checkAchievements(context);
+
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('habits')
+          .get();
+      _myHabits = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return Habit(
+            id: doc.id,
+            title: data['title'] ?? 'Sin título',
+            color: Color(data['colorValue'] ?? 0xFF10B981),
+            iconCodePoint: data['iconCodePoint'] ?? Icons.star.codePoint,
+            reminderTime: data['reminderTime'],
+            activeDays: List<int>.from(
+              data['activeDays'] ?? [1, 2, 3, 4, 5, 6, 7],
+            ),
+            isAlarm: data['isAlarm'] ?? false,
+            specificDate: data['specificDate'] != null
+                ? DateTime.parse(data['specificDate'])
+                : null,
+          )
+          ..isCompleted = data['isCompleted'] ?? false
+          ..streak = data['streak'] ?? 0;
+      }).toList();
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error cargando desde la nube: $e");
+    }
+  }
+
+  Future<void> _saveHabitToFirestore(Habit habit) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return;
+    }
+
+    try {
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('habits')
+          .doc(habit.id)
+          .set({
+            'title': habit.title,
+            'colorValue': habit.dynamicColor.toARGB32(),
+            'iconCodePoint': habit.iconCodePoint,
+            'reminderTime': habit.reminderTime,
+            'activeDays': habit.activeDays,
+            'isAlarm': habit.isAlarm,
+            'specificDate': habit.specificDate?.toIso8601String(),
+            'isCompleted': habit.isCompleted,
+            'streak': habit.streak,
+          });
+    } catch (e) {
+      debugPrint("Error guardando en la nube: $e");
+    }
+  }
+
+  Future<void> _deleteHabitFromFirestore(String habitId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return;
+    }
+
+    try {
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('habits')
+          .doc(habitId)
+          .delete();
+    } catch (e) {
+      debugPrint("Error borrando en la nube: $e");
+    }
   }
 
   void addOrUpdateHabit(
     String title,
-    Color color,
+    Color colorParam,
     int iconCode,
-    String? reminderStr, {
+    String? time, {
     int? index,
     List<int>? activeDays,
     bool isAlarm = false,
     DateTime? specificDate,
   }) {
-    final days = activeDays ?? [1, 2, 3, 4, 5, 6, 7];
-    if (index != null) {
-      if (reminderStr == null && myHabits[index].reminderTime != null) {
-        cancelHabitReminder(myHabits[index]);
-      }
-      myHabits[index].title = title;
-      myHabits[index].dynamicColor = color;
-      myHabits[index].iconCodePoint = iconCode;
-      myHabits[index].reminderTime = reminderStr;
-      myHabits[index].activeDays = days;
-      myHabits[index].isAlarm = isAlarm;
-      myHabits[index].specificDate = specificDate;
-      if (reminderStr != null) {
-        scheduleHabitReminder(myHabits[index]);
-      }
-    } else {
-      final newHabit = Habit(
-        title: title,
-        color: color,
-        iconCodePoint: iconCode,
-        reminderTime: reminderStr,
-        activeDays: days,
-        isAlarm: isAlarm,
-        specificDate: specificDate,
-      );
-      myHabits.add(newHabit);
-      if (reminderStr != null) {
-        scheduleHabitReminder(newHabit);
-      }
+    if (title.isEmpty) {
+      return;
     }
-    saveData();
+
+    final String currentId = index != null
+        ? _myHabits[index].id
+        : DateTime.now().millisecondsSinceEpoch.toString();
+    final newHabit = Habit(
+      id: currentId,
+      title: title,
+      color: colorParam,
+      iconCodePoint: iconCode,
+      reminderTime: time,
+      activeDays: activeDays ?? [1, 2, 3, 4, 5, 6, 7],
+      isAlarm: isAlarm,
+      specificDate: specificDate,
+    );
+
+    if (index != null) {
+      newHabit.streak = _myHabits[index].streak;
+      newHabit.isCompleted = _myHabits[index].isCompleted;
+      _myHabits[index] = newHabit;
+    } else {
+      _myHabits.add(newHabit);
+    }
+    _saveHabitToFirestore(newHabit);
+    notifyListeners();
+  }
+
+  void toggleHabitCompletion(Habit habit, BuildContext context) {
+    habit.isCompleted = !habit.isCompleted;
+    if (habit.isCompleted) {
+      habit.streak++;
+      _playerXP += 15;
+    } else if (habit.streak > 0) {
+      habit.streak--;
+      _playerXP = (_playerXP - 15).clamp(0, 99999);
+    }
+    _saveHabitToFirestore(habit);
+    _saveLocalData();
+    notifyListeners();
   }
 
   void deleteHabit(int index) {
-    cancelHabitReminder(myHabits[index]);
-    myHabits.removeAt(index);
-    saveData();
+    final habitId = _myHabits[index].id;
+    _myHabits.removeAt(index);
+    _deleteHabitFromFirestore(habitId);
+    notifyListeners();
   }
 
-  void insertHabit(int index, Habit habit) {
-    myHabits.insert(index, habit);
-    if (habit.reminderTime != null) {
-      scheduleHabitReminder(habit);
-    }
-    saveData();
-  }
-
-  void reorderHabits(int oldIndex, int newIndex) {
-    if (newIndex > oldIndex) {
-      newIndex--;
-    }
-    final item = myHabits.removeAt(oldIndex);
-    myHabits.insert(newIndex, item);
-    saveData();
-  }
-
-  void gainXP(int amount, BuildContext context) {
-    playerXP += amount;
-    if (playerXP >= xpPerLevel) {
-      playerXP -= xpPerLevel;
-      playerLevel++;
-      _showLevelUpDialog(context);
+  Future<void> _loadLocalData() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isPremiumUnlocked = prefs.getBool('isPremium') ?? false;
+    _userAge = prefs.getString('userAge') ?? "25";
+    _userGender = prefs.getString('userGender') ?? "Prefiero no decirlo";
+    _useBiometrics = prefs.getBool('useBiometrics') ?? false;
+    _playerXP = prefs.getInt('playerXP') ?? 0;
+    int themeIndex = prefs.getInt('themeIndex') ?? 0;
+    if (themeIndex >= 0 && themeIndex < AppThemeMode.values.length) {
+      _currentTheme = AppThemeMode.values[themeIndex];
     }
   }
 
-  void _showLevelUpDialog(BuildContext context) {
-    SystemSound.play(SystemSoundType.alert);
-    HapticFeedback.heavyImpact();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.shield_rounded,
-              size: 80,
-              color: Color(0xFFF59E0B),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              "¡SUBISTE DE NIVEL!",
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFFF59E0B),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "Ahora eres Nivel $playerLevel",
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text("¡Excelente!"),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _saveLocalData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isPremium', _isPremiumUnlocked);
+    await prefs.setString('userAge', _userAge);
+    await prefs.setString('userGender', _userGender);
+    await prefs.setBool('useBiometrics', _useBiometrics);
+    await prefs.setInt('playerXP', _playerXP);
+    await prefs.setInt('themeIndex', _currentTheme.index);
   }
 
-  void _checkNewDay() {
-    final now = DateTime.now();
-    bool changed = false;
-    for (var habit in myHabits) {
-      if (habit.lastCompletedDate != null) {
-        final lastDate = habit.lastCompletedDate!;
-        final today = DateTime(now.year, now.month, now.day);
-        final lastCompletedDay = DateTime(
-          lastDate.year,
-          lastDate.month,
-          lastDate.day,
-        );
-        if (today.difference(lastCompletedDay).inDays > 0) {
-          habit.isCompleted = false;
-          changed = true;
-          if (today.difference(lastCompletedDay).inDays > 1) {
-            habit.streak = 0;
-          }
-        }
-      }
-    }
-    if (changed) {
-      saveData();
-    }
+  void unlockPremium() {
+    _isPremiumUnlocked = true;
+    _saveLocalData();
+    notifyListeners();
   }
 
-  void checkAchievements(BuildContext context) {
-    bool newlyUnlocked = false;
-    String achievementName = "";
-    int completedToday = myHabits.where((h) => h.isCompleted).length;
-    int maxStreak = myHabits.isEmpty
-        ? 0
-        : myHabits.map((h) => h.streak).reduce((a, b) => a > b ? a : b);
-    final hour = DateTime.now().hour;
-
-    if (completedToday >= 1 && !unlockedAchievements.contains("primer_paso")) {
-      unlockedAchievements.add("primer_paso");
-      achievementName = "Primera Sangre 🩸";
-      newlyUnlocked = true;
-    }
-    if (maxStreak >= 3 && !unlockedAchievements.contains("racha_3")) {
-      unlockedAchievements.add("racha_3");
-      achievementName = "Disciplinado 🔥";
-      newlyUnlocked = true;
-    }
-    if (maxStreak >= 7 && !unlockedAchievements.contains("racha_7")) {
-      unlockedAchievements.add("racha_7");
-      achievementName = "Imparable 🏆";
-      newlyUnlocked = true;
-    }
-    if (maxStreak >= 14 && !unlockedAchievements.contains("racha_14")) {
-      unlockedAchievements.add("racha_14");
-      achievementName = "Titán del Hábito 👑";
-      newlyUnlocked = true;
-    }
-    if (hour < 8 &&
-        completedToday >= 1 &&
-        !unlockedAchievements.contains("madrugador")) {
-      unlockedAchievements.add("madrugador");
-      achievementName = "Madrugador ☕";
-      newlyUnlocked = true;
-    }
-    if (myHabits.length >= 3 &&
-        completedToday == myHabits.length &&
-        !unlockedAchievements.contains("perfeccion")) {
-      unlockedAchievements.add("perfeccion");
-      achievementName = "Día Perfecto ⭐";
-      newlyUnlocked = true;
-    }
-
-    if (newlyUnlocked) {
-      saveData();
-      HapticFeedback.heavyImpact();
-      SystemSound.play(SystemSoundType.alert);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "¡Logro Desbloqueado! $achievementName",
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-      );
-    }
+  void setTheme(AppThemeMode theme) {
+    _currentTheme = theme;
+    _saveLocalData();
+    notifyListeners();
   }
 
-  Future<void> _initNotifications() async {
-    const AndroidInitializationSettings initSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const InitializationSettings initSettings = InitializationSettings(
-      android: initSettingsAndroid,
-    );
-    await flutterLocalNotificationsPlugin.initialize(initSettings);
-    flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestNotificationsPermission();
-  }
-
-  void scheduleHabitReminder(Habit habit) async {
-    if (habit.reminderTime == null) {
-      return;
-    }
-    final parts = habit.reminderTime!.split(":");
-    final now = tz.TZDateTime.now(tz.local);
-    tz.TZDateTime scheduledDate;
-
-    if (habit.specificDate != null) {
-      scheduledDate = tz.TZDateTime(
-        tz.local,
-        habit.specificDate!.year,
-        habit.specificDate!.month,
-        habit.specificDate!.day,
-        int.parse(parts[0]),
-        int.parse(parts[1]),
-      );
-    } else {
-      scheduledDate = tz.TZDateTime(
-        tz.local,
-        now.year,
-        now.month,
-        now.day,
-        int.parse(parts[0]),
-        int.parse(parts[1]),
-      );
-      if (scheduledDate.isBefore(now)) {
-        scheduledDate = scheduledDate.add(const Duration(days: 1));
-      }
-    }
-
-    final androidDetails = AndroidNotificationDetails(
-      'habit_reminders',
-      'Recordatorios',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-      fullScreenIntent: habit.isAlarm,
-    );
-    await flutterLocalNotificationsPlugin.zonedSchedule(
-      habit.id.hashCode,
-      habit.isAlarm ? '⏰ ¡EVENTO / ALARMA!' : '¡Es hora! 🔔',
-      'Toca hacer: ${habit.title}',
-      scheduledDate,
-      NotificationDetails(android: androidDetails),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: habit.specificDate != null
-          ? null
-          : DateTimeComponents.time,
-    );
-  }
-
-  void cancelHabitReminder(Habit habit) async {
-    await flutterLocalNotificationsPlugin.cancel(habit.id.hashCode);
+  void setFilter(String filter) {
+    _currentFilter = filter;
+    notifyListeners();
   }
 }

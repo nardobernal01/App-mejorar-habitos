@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/habit_provider.dart';
-import 'onboarding_screen.dart'; // Si aún usas tu pantalla de bienvenida, asegúrate de que exista
+import 'onboarding_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,17 +19,114 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController ageCtrl = TextEditingController();
   String selectedGender = "Prefiero no decirlo";
 
-  void _finishAuth() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('hasSeenOnboarding', true);
-    if (mounted) {
-      if (!isLoginMode && nameCtrl.text.isNotEmpty) {
-        context.read<HabitProvider>().updateProfile(
-          nameCtrl.text.trim(),
-          ageCtrl.text.isNotEmpty ? ageCtrl.text.trim() : "25",
-          selectedGender,
-          null,
+  // --- NUEVA FUNCIÓN: Autenticación REAL con Correo/Contraseña ---
+  Future<void> _handleEmailAuth() async {
+    final email = emailCtrl.text.trim();
+    final password = passCtrl.text.trim();
+
+    // 1. Validaciones básicas
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Por favor, llena correo y contraseña.")),
+      );
+      return;
+    }
+
+    final provider = context.read<HabitProvider>();
+
+    // 2. Mostrar círculo de carga
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF10B981)),
+      ),
+    );
+
+    String? errorMessage;
+
+    // 3. Ejecutar Registro o Inicio de Sesión
+    if (isLoginMode) {
+      errorMessage = await provider.signInWithEmail(email, password);
+    } else {
+      final name = nameCtrl.text.trim();
+      final age = ageCtrl.text.trim();
+      if (name.isEmpty) {
+        if (!mounted) {
+          return;
+        }
+        Navigator.pop(context); // Cerrar loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Ingresa tu nombre para crear la cuenta."),
+          ),
         );
+        return;
+      }
+      errorMessage = await provider.registerWithEmail(
+        email,
+        password,
+        name,
+        age.isEmpty ? "25" : age,
+        selectedGender,
+      );
+    }
+
+    // 4. Cerrar círculo de carga
+    if (!mounted) {
+      return;
+    }
+    Navigator.pop(context);
+
+    // 5. Analizar resultado
+    if (errorMessage == null && provider.isAuthenticated) {
+      // ÉXITO: Guardamos estado y vamos a Onboarding
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('hasSeenOnboarding', true);
+
+      if (!mounted) {
+        return;
+      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+      );
+    } else if (errorMessage != null) {
+      // ERROR: Mostramos qué salió mal
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  // --- FUNCIÓN GOOGLE (Intacta y funcional) ---
+  Future<void> _handleGoogleSignIn() async {
+    final provider = context.read<HabitProvider>();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF10B981)),
+      ),
+    );
+
+    await provider.authenticate();
+
+    if (!mounted) {
+      return;
+    }
+    Navigator.pop(context);
+
+    if (provider.isAuthenticated) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('hasSeenOnboarding', true);
+
+      if (!mounted) {
+        return;
       }
       Navigator.pushReplacement(
         context,
@@ -64,111 +161,40 @@ class _LoginScreenState extends State<LoginScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  isLoginMode ? "Bienvenido de nuevo" : "Crea tu cuenta",
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, color: Colors.grey),
-                ),
                 const SizedBox(height: 32),
 
+                // Selector Entrar/Registro
                 Row(
                   children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            isLoginMode = true;
-                          });
-                          HapticFeedback.lightImpact();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                color: isLoginMode
-                                    ? const Color(0xFF2563EB)
-                                    : Colors.transparent,
-                                width: 3,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            "Entrar",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: isLoginMode
-                                  ? const Color(0xFF2563EB)
-                                  : Colors.grey,
-                            ),
-                          ),
-                        ),
-                      ),
+                    _buildTab(
+                      "Entrar",
+                      isLoginMode,
+                      () => setState(() => isLoginMode = true),
                     ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            isLoginMode = false;
-                          });
-                          HapticFeedback.lightImpact();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(
-                                color: !isLoginMode
-                                    ? const Color(0xFF2563EB)
-                                    : Colors.transparent,
-                                width: 3,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            "Registro",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: !isLoginMode
-                                  ? const Color(0xFF2563EB)
-                                  : Colors.grey,
-                            ),
-                          ),
-                        ),
-                      ),
+                    _buildTab(
+                      "Registro",
+                      !isLoginMode,
+                      () => setState(() => isLoginMode = false),
                     ),
                   ],
                 ),
                 const SizedBox(height: 32),
 
                 if (!isLoginMode) ...[
-                  TextField(
-                    controller: nameCtrl,
-                    decoration: InputDecoration(
-                      labelText: "Nombre completo",
-                      prefixIcon: const Icon(Icons.person_rounded),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
+                  _buildTextField(
+                    nameCtrl,
+                    "Nombre completo",
+                    Icons.person_rounded,
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
-                        child: TextField(
-                          controller: ageCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: "Edad",
-                            prefixIcon: const Icon(Icons.cake_rounded),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
+                        child: _buildTextField(
+                          ageCtrl,
+                          "Edad",
+                          Icons.cake_rounded,
+                          isNumber: true,
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -196,11 +222,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   )
                                   .toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() => selectedGender = val);
-                            }
-                          },
+                          onChanged: (val) =>
+                              setState(() => selectedGender = val!),
                         ),
                       ),
                     ],
@@ -208,31 +231,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                TextField(
-                  controller: emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: "Correo electrónico",
-                    prefixIcon: const Icon(Icons.email_rounded),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+                _buildTextField(
+                  emailCtrl,
+                  "Correo electrónico",
+                  Icons.email_rounded,
+                  isEmail: true,
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: passCtrl,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: "Contraseña",
-                    prefixIcon: const Icon(Icons.lock_rounded),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+                _buildTextField(
+                  passCtrl,
+                  "Contraseña",
+                  Icons.lock_rounded,
+                  isPassword: true,
                 ),
                 const SizedBox(height: 24),
 
+                // BOTÓN CONECTADO A FIREBASE
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.all(16),
@@ -242,7 +256,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onPressed: _finishAuth,
+                  onPressed:
+                      _handleEmailAuth, // <-- Ahora llama al proceso real
                   child: Text(
                     isLoginMode ? "Iniciar Sesión" : "Crear Cuenta",
                     style: const TextStyle(
@@ -253,58 +268,110 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                Row(
-                  children: [
-                    Expanded(
-                      child: Divider(color: Colors.grey.withValues(alpha: 0.3)),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text("O", style: TextStyle(color: Colors.grey)),
-                    ),
-                    Expanded(
-                      child: Divider(color: Colors.grey.withValues(alpha: 0.3)),
-                    ),
-                  ],
-                ),
+                _buildDivider(),
                 const SizedBox(height: 24),
 
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.all(16),
-                    foregroundColor: textColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
-                  label: const Text(
-                    "Continuar con Google",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  onPressed: _finishAuth,
+                // BOTÓN GOOGLE
+                _buildSocialButton(
+                  "Continuar con Google",
+                  Icons.g_mobiledata_rounded,
+                  textColor,
+                  _handleGoogleSignIn,
                 ),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.all(16),
-                    foregroundColor: textColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  icon: const Icon(Icons.apple_rounded, size: 28),
-                  label: const Text(
-                    "Continuar con Apple",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  onPressed: _finishAuth,
-                ),
+
+                // ¡ADIÓS AL BOTÓN DE APPLE!
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  // --- Widgets de apoyo ---
+  Widget _buildTab(String label, bool active, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          onTap();
+          HapticFeedback.lightImpact();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: active ? const Color(0xFF2563EB) : Colors.transparent,
+                width: 3,
+              ),
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: active ? const Color(0xFF2563EB) : Colors.grey,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+    TextEditingController ctrl,
+    String label,
+    IconData icon, {
+    bool isPassword = false,
+    bool isNumber = false,
+    bool isEmail = false,
+  }) {
+    return TextField(
+      controller: ctrl,
+      obscureText: isPassword,
+      keyboardType: isNumber
+          ? TextInputType.number
+          : (isEmail ? TextInputType.emailAddress : TextInputType.text),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return Row(
+      children: [
+        Expanded(child: Divider(color: Colors.grey.withAlpha(50))),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            " O usar métodos alternativos ",
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+        ),
+        Expanded(child: Divider(color: Colors.grey.withAlpha(50))),
+      ],
+    );
+  }
+
+  Widget _buildSocialButton(
+    String label,
+    IconData icon,
+    Color textColor,
+    VoidCallback onPressed,
+  ) {
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.all(16),
+        foregroundColor: textColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      icon: Icon(icon, size: 28),
+      label: Text(label, style: const TextStyle(fontSize: 16)),
+      onPressed: onPressed,
     );
   }
 }

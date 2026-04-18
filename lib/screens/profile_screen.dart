@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:share_plus/share_plus.dart';
 import '../providers/habit_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -310,21 +310,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Stack(
                           alignment: Alignment.bottomRight,
                           children: [
-                            CircleAvatar(
-                              radius: 50,
-                              backgroundColor: const Color(
-                                0xFFF59E0B,
-                              ).withValues(alpha: 0.2),
-                              backgroundImage: provider.userPhotoPath != null
-                                  ? FileImage(File(provider.userPhotoPath!))
-                                  : null,
-                              child: provider.userPhotoPath == null
-                                  ? const Icon(
-                                      Icons.person_rounded,
-                                      size: 60,
-                                      color: Color(0xFFF59E0B),
-                                    )
-                                  : null,
+                            ClipOval(
+                              child: Container(
+                                width: 130,
+                                height: 130,
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? Colors.grey[800]
+                                    : Colors.grey[200],
+                                child:
+                                    (provider.userPhotoPath != null ||
+                                        FirebaseAuth
+                                                .instance
+                                                .currentUser
+                                                ?.photoURL !=
+                                            null)
+                                    ? Image.network(
+                                        provider.userPhotoPath ??
+                                            FirebaseAuth
+                                                .instance
+                                                .currentUser!
+                                                .photoURL!,
+                                        fit: BoxFit.cover,
+                                        // Si el enlace de Google falla, mostramos el icono por defecto
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                              return const Icon(
+                                                Icons.person,
+                                                size: 65,
+                                                color: Colors.grey,
+                                              );
+                                            },
+                                      )
+                                    : const Icon(
+                                        Icons.person,
+                                        size: 65,
+                                        color: Colors.grey,
+                                      ),
+                              ),
                             ),
                             Container(
                               padding: const EdgeInsets.all(6),

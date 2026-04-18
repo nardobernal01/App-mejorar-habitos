@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:lottie/lottie.dart';
 
 import '../models/habit_model.dart';
 import '../providers/habit_provider.dart';
@@ -95,9 +96,15 @@ class _HabitScreenState extends State<HabitScreen>
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
-    if (hour < 5) return "Buenas madrugadas";
-    if (hour < 12) return "Buenos días";
-    if (hour < 19) return "Buenas tardes";
+    if (hour < 5) {
+      return "Buenas madrugadas";
+    }
+    if (hour < 12) {
+      return "Buenos días";
+    }
+    if (hour < 19) {
+      return "Buenas tardes";
+    }
     return "Buenas noches";
   }
 
@@ -304,7 +311,6 @@ class _HabitScreenState extends State<HabitScreen>
                           onSelected: (selected) {
                             SystemSound.play(SystemSoundType.click);
                             HapticFeedback.selectionClick();
-                            // RECONEXIÓN: Si no es PRO, mostramos la ventana de pago que construimos.
                             if (isPro) {
                               context.read<HabitProvider>().setTheme(mode);
                               Navigator.pop(context);
@@ -993,6 +999,7 @@ class _HabitScreenState extends State<HabitScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     int timeLeft = initialSeconds;
     Timer? focusTimer;
+
     showModalBottomSheet(
       context: context,
       isDismissible: false,
@@ -1280,6 +1287,7 @@ class _HabitScreenState extends State<HabitScreen>
     }
 
     String statusMessage = "¡A por todas hoy!";
+
     if (displayedHabits.isNotEmpty) {
       if (progress == 0) {
         statusMessage = "¡Empieza tu primer hábito!";
@@ -1388,16 +1396,23 @@ class _HabitScreenState extends State<HabitScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            "${_getGreeting()}, ${provider.userName}",
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: subTextColor,
-                              fontWeight: FontWeight.w500,
+                          Expanded(
+                            child: Text(
+                              "${_getGreeting()}, ${provider.userName}",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: subTextColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow
+                                  .ellipsis, // Esto añade "..." si el nombre es muy largo
                             ),
                           ),
+                          const SizedBox(
+                            width: 10,
+                          ), // Un pequeño espacio de respiración
                           Text(
                             statusMessage,
                             style: TextStyle(
@@ -1408,6 +1423,7 @@ class _HabitScreenState extends State<HabitScreen>
                           ),
                         ],
                       ),
+                      const SizedBox(height: 5),
                       const SizedBox(height: 5),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1772,10 +1788,29 @@ class _HabitScreenState extends State<HabitScreen>
                       width: 50,
                       height: 50,
                       child: habit.isCompleted
-                          ? Icon(
-                              Icons.check_circle_rounded,
-                              size: 35,
-                              color: completedTextColor,
+                          ? Container(
+                              decoration: BoxDecoration(
+                                color: isLightColor
+                                    ? Colors.black87
+                                    : Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 5,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: OverflowBox(
+                                maxWidth: 80,
+                                maxHeight: 80,
+                                child: Lottie.asset(
+                                  'assets/animations/success.json',
+                                  repeat: false,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
                             )
                           : Icon(
                               Icons.circle_outlined,
