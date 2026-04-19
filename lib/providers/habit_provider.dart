@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/habit_model.dart';
 
 enum AppThemeMode {
+  system,
   light,
   dark,
   amoled,
@@ -29,7 +30,7 @@ class HabitProvider with ChangeNotifier {
   String _currentFilter = "Todas";
   bool _isPremiumUnlocked = false;
   bool _isAuthenticated = false;
-  AppThemeMode _currentTheme = AppThemeMode.light;
+  AppThemeMode _currentTheme = AppThemeMode.system;
 
   String _userAge = "25";
   String _userGender = "Prefiero no decirlo";

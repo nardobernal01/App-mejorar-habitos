@@ -15,7 +15,18 @@ class NotificationService {
     const InitializationSettings initializationSettings =
         InitializationSettings(android: initializationSettingsAndroid);
 
-    // FIX: Ahora se llama 'settings'
+    // 1. EL APRETÓN DE MANOS: Pedir permisos en tiempo real a Android 13+
+    final androidImplementation = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+
+    if (androidImplementation != null) {
+      await androidImplementation.requestNotificationsPermission();
+      await androidImplementation.requestExactAlarmsPermission();
+    }
+
+    // FIX: Agregada la etiqueta 'settings:' que pide la nueva versión
     await _notificationsPlugin.initialize(settings: initializationSettings);
   }
 
@@ -25,23 +36,32 @@ class NotificationService {
     required String body,
     required DateTime scheduledTime,
   }) async {
+    tz.TZDateTime scheduledDate = tz.TZDateTime.from(scheduledTime, tz.local);
+    if (scheduledDate.isBefore(tz.TZDateTime.now(tz.local))) {
+      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    }
+
+    // FIX: Agregadas TODAS las etiquetas nombradas (id:, title:, body:, etc.)
     await _notificationsPlugin.zonedSchedule(
       id: id,
       title: title,
       body: body,
-      scheduledDate: tz.TZDateTime.from(scheduledTime, tz.local),
+      scheduledDate: scheduledDate,
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
-          'habit_channel',
+          'habit_channel_v2',
           'Recordatorios de Hábitos',
           channelDescription: 'Canal para las alertas de hábitos diarios',
           importance: Importance.max,
           priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+          fullScreenIntent: true,
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      // En la v21+, estos parámetros son opcionales o cambiaron,
-      // pero matchDateTimeComponents sigue siendo vital para repeticiones.
+      // FIX: Este parámetro (uiLocalNotificationDateInterpretation) fue eliminado en las versiones nuevas,
+      // así que lo quitamos para que no marque error. matchDateTimeComponents sigue siendo válido.
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }

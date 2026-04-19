@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 
 import 'providers/habit_provider.dart';
-import 'screens/login_screen.dart';
+
 import 'screens/habit_screen.dart';
 
 void main() async {
@@ -32,6 +32,7 @@ class BloomYourDayApp extends StatelessWidget {
 
   ThemeData _buildTheme(AppThemeMode mode) {
     switch (mode) {
+      case AppThemeMode.system:
       case AppThemeMode.light:
         return ThemeData(
           brightness: Brightness.light,
@@ -199,13 +200,27 @@ class BloomYourDayApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final currentMode = context.watch<HabitProvider>().currentTheme;
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
       title: 'Bloom Your Day',
-      theme: _buildTheme(currentMode),
-      home: GestureDetector(
-        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-        child: hasSeenOnboarding ? const HabitScreen() : const LoginScreen(),
-      ),
+      debugShowCheckedModeBanner: false,
+
+      // El tema base de tu app (tu _buildTheme original)
+      theme: _buildTheme(AppThemeMode.light),
+      darkTheme: _buildTheme(AppThemeMode.dark),
+
+      // --- LA LÓGICA INTELIGENTE DEL TEMA ---
+      // 1. Si currentMode es 'light' explícitamente, forzamos claro.
+      // 2. Si currentMode es 'dark' o un tema premium oscuro, forzamos oscuro.
+      // 3. De lo contrario (o si es 'system'), obedece al celular de inmediato.
+      themeMode: currentMode == AppThemeMode.light
+          ? ThemeMode.light
+          : (currentMode == AppThemeMode.dark ||
+                currentMode == AppThemeMode.dracula ||
+                currentMode == AppThemeMode.amoled)
+          ? ThemeMode.dark
+          : ThemeMode.system,
+
+      // --------------------------------------
+      home: const HabitScreen(),
     );
   }
 }

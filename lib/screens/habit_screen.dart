@@ -270,18 +270,23 @@ class _HabitScreenState extends State<HabitScreen>
                   spacing: 12,
                   runSpacing: 12,
                   alignment: WrapAlignment.center,
-                  children: [AppThemeMode.light, AppThemeMode.dark].map((mode) {
-                    return ChoiceChip(
-                      label: Text(mode.name.toUpperCase()),
-                      selected: provider.currentTheme == mode,
-                      onSelected: (selected) {
-                        SystemSound.play(SystemSoundType.click);
-                        HapticFeedback.selectionClick();
-                        context.read<HabitProvider>().setTheme(mode);
-                        Navigator.pop(context);
-                      },
-                    );
-                  }).toList(),
+                  children:
+                      [
+                        AppThemeMode.system,
+                        AppThemeMode.light,
+                        AppThemeMode.dark,
+                      ].map((mode) {
+                        return ChoiceChip(
+                          label: Text(mode.name.toUpperCase()),
+                          selected: provider.currentTheme == mode,
+                          onSelected: (selected) {
+                            SystemSound.play(SystemSoundType.click);
+                            HapticFeedback.selectionClick();
+                            context.read<HabitProvider>().setTheme(mode);
+                            Navigator.pop(context);
+                          },
+                        );
+                      }).toList(),
                 ),
                 const SizedBox(height: 30),
                 Wrap(
@@ -1067,6 +1072,8 @@ class _HabitScreenState extends State<HabitScreen>
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+
+                    // ... (código anterior: Icono, Modo Focus, Título) ...
                     Text(
                       habit.title,
                       style: TextStyle(
@@ -1076,17 +1083,41 @@ class _HabitScreenState extends State<HabitScreen>
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 30), // Espacio antes del reloj
+                    // AQUÍ ESTÁ EL RELOJ GIGANTE (Asegúrate de tener esto)
                     Text(
                       formatTime(timeLeft),
                       style: TextStyle(
-                        fontSize: 60,
+                        fontSize: 60, // ¡Reloj grande!
                         fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : Colors.black87,
+                        color: habit.dynamicColor,
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
-                    const SizedBox(height: 30),
+
+                    const SizedBox(height: 15), // Espacio antes del aviso
+                    // AQUÍ VA NUESTRO NUEVO AVISO DE LA BOMBILLA
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.lightbulb_outline,
+                          size: 14,
+                          color: isDark ? Colors.white54 : Colors.black54,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          "Mantén la pantalla encendida",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.white54 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 30), // Espacio antes de los botones
+                    // ... (código siguiente: Row con los botones de play/pause) ...
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(
@@ -1681,7 +1712,38 @@ class _HabitScreenState extends State<HabitScreen>
             return true;
           },
           onDismissed: (_) {
+            // Guardamos una copia temporal antes de borrar
+            final deletedHabit = habit;
+
+            // Borramos el hábito de la base de datos
             provider.deleteHabit(realIndex);
+
+            // Mostramos el mensaje para "Deshacer"
+            ScaffoldMessenger.of(context).clearSnackBars();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Hábito '${deletedHabit.title}' eliminado"),
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: isDark ? Colors.grey[800] : Colors.black87,
+                duration: const Duration(seconds: 4),
+                action: SnackBarAction(
+                  label: 'DESHACER',
+                  textColor: const Color(0xFF10B981), // Verde esmeralda
+                  onPressed: () {
+                    // Si se arrepiente, lo volvemos a meter a la base de datos
+                    provider.addOrUpdateHabit(
+                      deletedHabit.title,
+                      deletedHabit.dynamicColor,
+                      deletedHabit.iconCodePoint,
+                      deletedHabit.reminderTime,
+                      activeDays: deletedHabit.activeDays,
+                      isAlarm: deletedHabit.isAlarm,
+                      specificDate: deletedHabit.specificDate,
+                    );
+                  },
+                ),
+              ),
+            );
           },
           background: Container(
             color: const Color(0xFF3B82F6),
@@ -1707,9 +1769,23 @@ class _HabitScreenState extends State<HabitScreen>
             color: itemBgColor,
             child: InkWell(
               onTap: () {
-                // AQUÍ DETONAMOS EL CONFETI SI AÚN NO ESTÁ COMPLETADO
+                // CONFETI SOLO AL 100% DE HÁBITOS
                 if (!habit.isCompleted) {
-                  _confettiController.play();
+                  final now = DateTime.now();
+                  final todayHabits = provider.myHabits.where((h) {
+                    if (h.specificDate != null) {
+                      return h.specificDate!.year == now.year &&
+                          h.specificDate!.month == now.month &&
+                          h.specificDate!.day == now.day;
+                    }
+                    return h.activeDays.contains(now.weekday);
+                  }).toList();
+                  final alreadyCompleted = todayHabits
+                      .where((h) => h.isCompleted)
+                      .length;
+                  if (alreadyCompleted + 1 == todayHabits.length) {
+                    _confettiController.play();
+                  }
                 }
                 provider.toggleHabitCompletion(habit, context);
               },
