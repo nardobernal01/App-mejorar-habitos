@@ -9,6 +9,10 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:lottie/lottie.dart';
 
+// NUEVOS IMPORTS
+import 'package:confetti/confetti.dart';
+import '../widgets/empty_state_widget.dart';
+
 import '../models/habit_model.dart';
 import '../providers/habit_provider.dart';
 import 'profile_screen.dart';
@@ -23,8 +27,9 @@ class _HabitScreenState extends State<HabitScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _habitController = TextEditingController();
   final ScreenshotController _screenshotController = ScreenshotController();
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+
+  // CONTROLADOR DEL CONFETI
+  late ConfettiController _confettiController;
 
   final List<Color> _palette = [
     const Color(0xFF10B981),
@@ -51,18 +56,18 @@ class _HabitScreenState extends State<HabitScreen>
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
+
+    // INICIALIZAR CONFETI
+    _confettiController = ConfettiController(
       duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.1).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
+    // LIMPIAR CONFETI
+    _confettiController.dispose();
+
     _habitController.dispose();
     super.dispose();
   }
@@ -1316,293 +1321,301 @@ class _HabitScreenState extends State<HabitScreen>
         constraints: const BoxConstraints(maxWidth: 600),
         child: Screenshot(
           controller: _screenshotController,
-          child: Scaffold(
-            appBar: AppBar(
-              title: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                  );
-                },
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.person_rounded,
-                            size: 18,
-                            color: Color(0xFFF59E0B),
+          // AQUÍ EMPIEZA LA MAGIA DEL STACK Y CONFETI
+          child: Stack(
+            children: [
+              Scaffold(
+                appBar: AppBar(
+                  title: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileScreen(),
+                        ),
+                      );
+                    },
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            "Nvl ${provider.playerLevel}",
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFF59E0B),
-                            ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFFF59E0B,
+                            ).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ],
-                      ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.person_rounded,
+                                size: 18,
+                                color: Color(0xFFF59E0B),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                "Nvl ${provider.playerLevel}",
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFF59E0B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          "Bloom Your Day",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      "Bloom Your Day",
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: Icon(Icons.bar_chart_rounded, color: subTextColor),
+                      onPressed: () => _showStatsModal(provider),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.palette_rounded, color: subTextColor),
+                      onPressed: () => _showThemePicker(provider),
                     ),
                   ],
                 ),
-              ),
-              actions: [
-                IconButton(
-                  icon: Icon(Icons.bar_chart_rounded, color: subTextColor),
-                  onPressed: () => _showStatsModal(provider),
-                ),
-                IconButton(
-                  icon: Icon(Icons.palette_rounded, color: subTextColor),
-                  onPressed: () => _showThemePicker(provider),
-                ),
-              ],
-            ),
-            body: Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: isDark
-                        ? []
-                        : [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.06),
-                              blurRadius: 15,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                body: Column(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: isDark
+                            ? []
+                            : [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.06),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                      ),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              "${_getGreeting()}, ${provider.userName}",
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: subTextColor,
-                                fontWeight: FontWeight.w500,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  "${_getGreeting()}, ${provider.userName}",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: subTextColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                              overflow: TextOverflow
-                                  .ellipsis, // Esto añade "..." si el nombre es muy largo
-                            ),
+                              const SizedBox(width: 10),
+                              Text(
+                                statusMessage,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: barColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(
-                            width: 10,
-                          ), // Un pequeño espacio de respiración
-                          Text(
-                            statusMessage,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: barColor,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          const SizedBox(height: 5),
+                          const SizedBox(height: 5),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _getDate(),
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: textColor,
+                                ),
+                              ),
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 500),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: barBgColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  "$completed / ${displayedHabits.length}",
+                                  style: TextStyle(
+                                    color: isPerfectDay
+                                        ? Colors.amber[700]
+                                        : const Color(0xFF059669),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 500),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: TweenAnimationBuilder<double>(
+                                      tween: Tween<double>(
+                                        begin: 0,
+                                        end: progress,
+                                      ),
+                                      duration: const Duration(
+                                        milliseconds: 600,
+                                      ),
+                                      curve: Curves.easeOutCubic,
+                                      builder: (context, value, _) {
+                                        return LinearProgressIndicator(
+                                          value: value,
+                                          backgroundColor: isDark
+                                              ? Colors.white10
+                                              : Colors.black.withValues(
+                                                  alpha: 0.05,
+                                                ),
+                                          color: barColor,
+                                          minHeight: 12,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                "${(progress * 100).toInt()}%",
+                                style: TextStyle(
+                                  color: barColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 5),
-                      const SizedBox(height: 5),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _getDate(),
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: textColor,
-                            ),
-                          ),
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 500),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: barBgColor,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              "$completed / ${displayedHabits.length}",
-                              style: TextStyle(
-                                color: isPerfectDay
-                                    ? Colors.amber[700]
-                                    : const Color(0xFF059669),
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 500),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: TweenAnimationBuilder<double>(
-                                  tween: Tween<double>(begin: 0, end: progress),
-                                  duration: const Duration(milliseconds: 600),
-                                  curve: Curves.easeOutCubic,
-                                  builder: (context, value, _) {
-                                    return LinearProgressIndicator(
-                                      value: value,
+                    ),
+                    if (provider.myHabits.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 5,
+                        ),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: ["Todas", "Pendientes", "Completadas"]
+                                .map((filterName) {
+                                  final bool isSelected =
+                                      provider.currentFilter == filterName;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 8.0),
+                                    child: FilterChip(
+                                      label: Text(
+                                        filterName,
+                                        style: TextStyle(
+                                          fontWeight: isSelected
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : textColor,
+                                        ),
+                                      ),
+                                      selected: isSelected,
                                       backgroundColor: isDark
                                           ? Colors.white10
                                           : Colors.black.withValues(
                                               alpha: 0.05,
                                             ),
-                                      color: barColor,
-                                      minHeight: 12,
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            "${(progress * 100).toInt()}%",
-                            style: TextStyle(
-                              color: barColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                if (provider.myHabits.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 5,
-                    ),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: ["Todas", "Pendientes", "Completadas"].map((
-                          filterName,
-                        ) {
-                          final bool isSelected =
-                              provider.currentFilter == filterName;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: FilterChip(
-                              label: Text(
-                                filterName,
-                                style: TextStyle(
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                  color: isSelected ? Colors.white : textColor,
-                                ),
-                              ),
-                              selected: isSelected,
-                              backgroundColor: isDark
-                                  ? Colors.white10
-                                  : Colors.black.withValues(alpha: 0.05),
-                              selectedColor: const Color(0xFF2563EB),
-                              showCheckmark: false,
-                              side: BorderSide.none,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              onSelected: (bool selected) {
-                                context.read<HabitProvider>().setFilter(
-                                  filterName,
-                                );
-                              },
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
-                Expanded(
-                  child: displayedHabits.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              ScaleTransition(
-                                scale: _pulseAnimation,
-                                child: Icon(
-                                  provider.myHabits.isEmpty
-                                      ? Icons.rocket_launch_rounded
-                                      : Icons.check_circle_outline_rounded,
-                                  size: 80,
-                                  color: subTextColor.withValues(alpha: 0.3),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                provider.myHabits.isEmpty
-                                    ? "Tu día está en blanco"
-                                    : "No hay tareas aquí",
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: textColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.only(bottom: 100),
-                          itemCount: displayedHabits.length,
-                          itemBuilder: (context, index) => _buildHabitCard(
-                            displayedHabits[index],
-                            provider.myHabits.indexOf(displayedHabits[index]),
-                            isDark,
-                            textColor,
-                            subTextColor,
-                            provider,
-                            reorderable: false,
+                                      selectedColor: const Color(0xFF2563EB),
+                                      showCheckmark: false,
+                                      side: BorderSide.none,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      onSelected: (bool selected) {
+                                        context.read<HabitProvider>().setFilter(
+                                          filterName,
+                                        );
+                                      },
+                                    ),
+                                  );
+                                })
+                                .toList(),
                           ),
                         ),
+                      ),
+                    Expanded(
+                      // AQUÍ APLICAMOS LA MAGIA DEL EMPTY STATE
+                      child: displayedHabits.isEmpty
+                          ? const EmptyStateWidget()
+                          : ListView.builder(
+                              padding: const EdgeInsets.only(bottom: 100),
+                              itemCount: displayedHabits.length,
+                              itemBuilder: (context, index) => _buildHabitCard(
+                                displayedHabits[index],
+                                provider.myHabits.indexOf(
+                                  displayedHabits[index],
+                                ),
+                                isDark,
+                                textColor,
+                                subTextColor,
+                                provider,
+                                reorderable: false,
+                              ),
+                            ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            floatingActionButton: FloatingActionButton(
-              onPressed: () => _showHabitDialog(),
-              backgroundColor: const Color(0xFF2563EB),
-              elevation: 6,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                floatingActionButton: FloatingActionButton(
+                  onPressed: () => _showHabitDialog(),
+                  backgroundColor: const Color(0xFF2563EB),
+                  elevation: 6,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 28),
+                ),
               ),
-              child: const Icon(Icons.add, color: Colors.white, size: 28),
-            ),
+
+              // EL CAÑÓN DE CONFETI EN LA CIMA DEL STACK
+              Align(
+                alignment: Alignment.topCenter,
+                child: ConfettiWidget(
+                  confettiController: _confettiController,
+                  blastDirectionality: BlastDirectionality.explosive,
+                  shouldLoop: false,
+                  colors: const [
+                    Color(0xFF10B981),
+                    Colors.blue,
+                    Colors.orange,
+                    Colors.pink,
+                    Colors.purple,
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1694,6 +1707,10 @@ class _HabitScreenState extends State<HabitScreen>
             color: itemBgColor,
             child: InkWell(
               onTap: () {
+                // AQUÍ DETONAMOS EL CONFETI SI AÚN NO ESTÁ COMPLETADO
+                if (!habit.isCompleted) {
+                  _confettiController.play();
+                }
                 provider.toggleHabitCompletion(habit, context);
               },
               onLongPress: () => _showTimerSetupModal(habit, provider),

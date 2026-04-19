@@ -1,3 +1,4 @@
+import 'services/notification_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,6 +13,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   tz.initializeTimeZones();
   await Firebase.initializeApp();
+  await NotificationService.init();
   final prefs = await SharedPreferences.getInstance();
   // Asumimos que si ya vio el Onboarding y está registrado, va directo a HabitScreen
   final bool hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;

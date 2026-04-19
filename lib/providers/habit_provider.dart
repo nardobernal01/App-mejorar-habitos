@@ -93,9 +93,6 @@ class HabitProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // ==============================================================
-  // 🔐 AUTENTICACIÓN POR CORREO Y CONTRASEÑA (Con llaves estrictas)
-  // ==============================================================
   Future<String?> signInWithEmail(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
@@ -147,7 +144,6 @@ class HabitProvider with ChangeNotifier {
       return "Error desconocido.";
     }
   }
-  // ==============================================================
 
   Future<void> authenticate() async {
     try {
@@ -190,7 +186,6 @@ class HabitProvider with ChangeNotifier {
     if (user == null) {
       return;
     }
-
     try {
       final snapshot = await _firestore
           .collection('users')
@@ -227,7 +222,6 @@ class HabitProvider with ChangeNotifier {
     if (user == null) {
       return;
     }
-
     try {
       await _firestore
           .collection('users')
@@ -255,7 +249,6 @@ class HabitProvider with ChangeNotifier {
     if (user == null) {
       return;
     }
-
     try {
       await _firestore
           .collection('users')
@@ -281,7 +274,6 @@ class HabitProvider with ChangeNotifier {
     if (title.isEmpty) {
       return;
     }
-
     final String currentId = index != null
         ? _myHabits[index].id
         : DateTime.now().millisecondsSinceEpoch.toString();
@@ -295,7 +287,6 @@ class HabitProvider with ChangeNotifier {
       isAlarm: isAlarm,
       specificDate: specificDate,
     );
-
     if (index != null) {
       newHabit.streak = _myHabits[index].streak;
       newHabit.isCompleted = _myHabits[index].isCompleted;
@@ -307,7 +298,10 @@ class HabitProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleHabitCompletion(Habit habit, BuildContext context) {
+  // =========================================================
+  // 🟢 NUEVO MOTOR DE COMPLETADO: Guarda datos para el Heatmap
+  // =========================================================
+  void toggleHabitCompletion(Habit habit, BuildContext context) async {
     habit.isCompleted = !habit.isCompleted;
     if (habit.isCompleted) {
       habit.streak++;
@@ -318,6 +312,35 @@ class HabitProvider with ChangeNotifier {
     }
     _saveHabitToFirestore(habit);
     _saveLocalData();
+
+    // 🟢 Lógica del historial en la nube
+    final user = _auth.currentUser;
+    if (user != null) {
+      final today = DateTime.now();
+      final dateKey = "${today.year}-${today.month}-${today.day}";
+      final historyRef = _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('completion_history')
+          .doc(dateKey);
+
+      try {
+        if (habit.isCompleted) {
+          await historyRef.set({
+            'date': Timestamp.fromDate(
+              DateTime(today.year, today.month, today.day),
+            ),
+            'count': FieldValue.increment(1),
+          }, SetOptions(merge: true));
+        } else {
+          await historyRef.set({
+            'count': FieldValue.increment(-1),
+          }, SetOptions(merge: true));
+        }
+      } catch (e) {
+        debugPrint("Error guardando en historial: $e");
+      }
+    }
     notifyListeners();
   }
 

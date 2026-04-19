@@ -1,3 +1,4 @@
+import '../widgets/real_heatmap.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -177,7 +178,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         maxCompletions = count;
       }
     }
-    final List<String> dayNames = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -203,58 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(color: subTextColor, fontSize: 14),
           ),
           const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: last7Days.map((day) {
-              final dateKey = DateTime(day.year, day.month, day.day);
-              final count = provider.heatmapDatasets[dateKey] ?? 0;
-              final double percentage = count / maxCompletions;
-              final bool isToday =
-                  day.day == now.day &&
-                  day.month == now.month &&
-                  day.year == now.year;
-              return Column(
-                children: [
-                  Tooltip(
-                    message: "$count completados",
-                    preferBelow: false,
-                    child: Container(
-                      height: 120,
-                      width: 32,
-                      alignment: Alignment.bottomCenter,
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white10
-                            : Colors.black.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 1000),
-                        curve: Curves.elasticOut,
-                        height: 120 * percentage,
-                        width: 32,
-                        decoration: BoxDecoration(
-                          color: isToday
-                              ? const Color(0xFFF59E0B)
-                              : const Color(0xFF2563EB),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    dayNames[day.weekday - 1],
-                    style: TextStyle(
-                      color: isToday ? const Color(0xFFF59E0B) : subTextColor,
-                      fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
-                    ),
-                  ),
-                ],
-              );
-            }).toList(),
-          ),
+          const RealHeatmap(),
         ],
       ),
     );
