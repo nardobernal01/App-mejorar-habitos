@@ -310,11 +310,10 @@ class HabitProvider with ChangeNotifier {
 
           // ¡Llamamos a tu función con su nombre y parámetros reales!
           NotificationService.scheduleNotification(
-            id: newHabit
-                .id
-                .hashCode, // Generamos un ID único usando el ID del hábito
-            title: '¡Es hora de tu hábito!',
-            body: newHabit.title,
+            id: newHabit.id.hashCode,
+            title: '¡Es hora de tu hábito!', // <-- Un título más descriptivo
+            body:
+                'Es momento de: ${newHabit.title}', // <-- Incluye el nombre del hábito de forma clara
             scheduledTime: scheduledTime,
           );
         }

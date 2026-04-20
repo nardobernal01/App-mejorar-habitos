@@ -811,7 +811,7 @@ class _HabitScreenState extends State<HabitScreen>
                               SwitchListTile(
                                 contentPadding: EdgeInsets.zero,
                                 title: Text(
-                                  "Alarma Ruidosa",
+                                  "Recibir recordatorio",
                                   style: TextStyle(
                                     color: isDark
                                         ? Colors.white70

@@ -70,7 +70,7 @@ class NotificationService {
           fullScreenIntent: true,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
       // 3. SOLUCIÓN AL ERROR DE 'uiLocalNotificationDateInterpretation':
       // Se eliminó por completo en las versiones nuevas, así que lo quitamos.
       matchDateTimeComponents: DateTimeComponents.time,
