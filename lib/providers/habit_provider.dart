@@ -3,8 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:local_auth/local_auth.dart';
 import '../models/habit_model.dart';
+import '../services/notification_service.dart';
 
 enum AppThemeMode {
   system,
@@ -36,6 +37,9 @@ class HabitProvider with ChangeNotifier {
   String _userGender = "Prefiero no decirlo";
   String? _userPhotoPath;
   bool _useBiometrics = false;
+
+  bool _isUnlocked = false;
+
   int _playerXP = 0;
   final int _xpPerLevel = 100;
   final Map<DateTime, int> _heatmapDatasets = {};
@@ -44,10 +48,10 @@ class HabitProvider with ChangeNotifier {
   String get userGender => _userGender;
   String? get userPhotoPath => _userPhotoPath;
   bool get useBiometrics => _useBiometrics;
+  bool get isUnlocked => _isUnlocked;
   int get playerXP => _playerXP;
   int get xpPerLevel => _xpPerLevel;
   Map<DateTime, int> get heatmapDatasets => _heatmapDatasets;
-
   List<Habit> get myHabits => _myHabits;
   String get userName => _userName;
   String get currentFilter => _currentFilter;
@@ -70,10 +74,28 @@ class HabitProvider with ChangeNotifier {
         notifyListeners();
       } else {
         _isAuthenticated = false;
+        _isUnlocked = false;
         _myHabits = [];
         notifyListeners();
       }
     });
+  }
+
+  Future<void> unlockAppWithBiometrics() async {
+    final LocalAuthentication auth = LocalAuthentication();
+    try {
+      final bool didAuthenticate = await auth.authenticate(
+        localizedReason: 'Por favor, autentícate para acceder a tus hábitos',
+        biometricOnly: false,
+      );
+
+      if (didAuthenticate) {
+        _isUnlocked = true;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint("Error de autenticación: $e");
+    }
   }
 
   void updateProfile(
@@ -97,18 +119,10 @@ class HabitProvider with ChangeNotifier {
   Future<String?> signInWithEmail(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
+      _isUnlocked = true;
       return null;
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        return "No se encontró ningún usuario con ese correo.";
-      }
-      if (e.code == 'wrong-password') {
-        return "Contraseña incorrecta.";
-      }
-      if (e.code == 'invalid-email') {
-        return "El formato del correo es inválido.";
-      }
-      return "Error al iniciar sesión: ${e.message}";
+      return e.message;
     } catch (e) {
       return "Error desconocido.";
     }
@@ -124,23 +138,17 @@ class HabitProvider with ChangeNotifier {
     try {
       UserCredential userCredential = await _auth
           .createUserWithEmailAndPassword(email: email, password: password);
-
       if (userCredential.user != null) {
         await userCredential.user!.updateDisplayName(name);
         _userName = name;
         _userAge = age;
         _userGender = gender;
+        _isUnlocked = true;
         await _saveLocalData();
       }
       return null;
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'email-already-in-use') {
-        return "Este correo ya está registrado.";
-      }
-      if (e.code == 'weak-password') {
-        return "La contraseña debe tener al menos 6 caracteres.";
-      }
-      return "Error al crear cuenta: ${e.message}";
+      return e.message;
     } catch (e) {
       return "Error desconocido.";
     }
@@ -150,8 +158,12 @@ class HabitProvider with ChangeNotifier {
     try {
       await _googleSignIn.initialize();
       await _googleSignIn.signOut();
+
+      // --- CORRECCIÓN EXACTA APLICADA AQUÍ ---
       final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
       final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      // ---------------------------------------
+
       final AuthCredential credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
       );
@@ -165,6 +177,7 @@ class HabitProvider with ChangeNotifier {
         _userName = user.displayName ?? "Usuario";
         _userPhotoPath = user.photoURL;
         _isAuthenticated = true;
+        _isUnlocked = true;
         await _saveLocalData();
         await _loadHabitsFromFirestore();
         notifyListeners();
@@ -178,6 +191,7 @@ class HabitProvider with ChangeNotifier {
     await _googleSignIn.signOut();
     await _auth.signOut();
     _isAuthenticated = false;
+    _isUnlocked = false;
     _myHabits = [];
     notifyListeners();
   }
@@ -223,43 +237,22 @@ class HabitProvider with ChangeNotifier {
     if (user == null) {
       return;
     }
-    try {
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('habits')
-          .doc(habit.id)
-          .set({
-            'title': habit.title,
-            'colorValue': habit.dynamicColor.toARGB32(),
-            'iconCodePoint': habit.iconCodePoint,
-            'reminderTime': habit.reminderTime,
-            'activeDays': habit.activeDays,
-            'isAlarm': habit.isAlarm,
-            'specificDate': habit.specificDate?.toIso8601String(),
-            'isCompleted': habit.isCompleted,
-            'streak': habit.streak,
-          });
-    } catch (e) {
-      debugPrint("Error guardando en la nube: $e");
-    }
-  }
-
-  Future<void> _deleteHabitFromFirestore(String habitId) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      return;
-    }
-    try {
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('habits')
-          .doc(habitId)
-          .delete();
-    } catch (e) {
-      debugPrint("Error borrando en la nube: $e");
-    }
+    await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('habits')
+        .doc(habit.id)
+        .set({
+          'title': habit.title,
+          'colorValue': habit.dynamicColor.toARGB32(),
+          'iconCodePoint': habit.iconCodePoint,
+          'reminderTime': habit.reminderTime,
+          'activeDays': habit.activeDays,
+          'isAlarm': habit.isAlarm,
+          'specificDate': habit.specificDate?.toIso8601String(),
+          'isCompleted': habit.isCompleted,
+          'streak': habit.streak,
+        }, SetOptions(merge: true));
   }
 
   void addOrUpdateHabit(
@@ -296,12 +289,44 @@ class HabitProvider with ChangeNotifier {
       _myHabits.add(newHabit);
     }
     _saveHabitToFirestore(newHabit);
+    // ... todo el código anterior de addOrUpdateHabit ...
+    _saveHabitToFirestore(newHabit);
+
+    // --- NUEVA LÓGICA DE ALARMAS CONECTADA A TU SERVICIO ---
+    if (newHabit.isAlarm && newHabit.reminderTime != null) {
+      try {
+        // Tu reminderTime probablemente viene como "14:30" (String), lo separamos:
+        final parts = newHabit.reminderTime!.split(':');
+        if (parts.length == 2) {
+          final now = DateTime.now();
+          // Creamos la fecha exacta de hoy a esa hora
+          final scheduledTime = DateTime(
+            now.year,
+            now.month,
+            now.day,
+            int.parse(parts[0]),
+            int.parse(parts[1]),
+          );
+
+          // ¡Llamamos a tu función con su nombre y parámetros reales!
+          NotificationService.scheduleNotification(
+            id: newHabit
+                .id
+                .hashCode, // Generamos un ID único usando el ID del hábito
+            title: '¡Es hora de tu hábito!',
+            body: newHabit.title,
+            scheduledTime: scheduledTime,
+          );
+        }
+      } catch (e) {
+        debugPrint("Error programando alarma: $e");
+      }
+    }
+    // --------------------------------------------------------
+
     notifyListeners();
   }
 
-  // =========================================================
-  // 🟢 NUEVO MOTOR DE COMPLETADO: Guarda datos para el Heatmap
-  // =========================================================
   void toggleHabitCompletion(Habit habit, BuildContext context) async {
     habit.isCompleted = !habit.isCompleted;
     if (habit.isCompleted) {
@@ -314,7 +339,6 @@ class HabitProvider with ChangeNotifier {
     _saveHabitToFirestore(habit);
     _saveLocalData();
 
-    // 🟢 Lógica del historial en la nube
     final user = _auth.currentUser;
     if (user != null) {
       final today = DateTime.now();
@@ -348,7 +372,15 @@ class HabitProvider with ChangeNotifier {
   void deleteHabit(int index) {
     final habitId = _myHabits[index].id;
     _myHabits.removeAt(index);
-    _deleteHabitFromFirestore(habitId);
+    final user = _auth.currentUser;
+    if (user != null) {
+      _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('habits')
+          .doc(habitId)
+          .delete();
+    }
     notifyListeners();
   }
 
@@ -360,6 +392,7 @@ class HabitProvider with ChangeNotifier {
     _useBiometrics = prefs.getBool('useBiometrics') ?? false;
     _playerXP = prefs.getInt('playerXP') ?? 0;
     int themeIndex = prefs.getInt('themeIndex') ?? 0;
+
     if (themeIndex >= 0 && themeIndex < AppThemeMode.values.length) {
       _currentTheme = AppThemeMode.values[themeIndex];
     }
@@ -377,6 +410,12 @@ class HabitProvider with ChangeNotifier {
 
   void unlockPremium() {
     _isPremiumUnlocked = true;
+    _saveLocalData();
+    notifyListeners();
+  }
+
+  void toggleBiometrics() {
+    _useBiometrics = !_useBiometrics;
     _saveLocalData();
     notifyListeners();
   }

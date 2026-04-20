@@ -1,6 +1,8 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:flutter/foundation.dart'; // Para el debugPrint
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
@@ -9,13 +11,21 @@ class NotificationService {
   static Future<void> init() async {
     tz.initializeTimeZones();
 
+    try {
+      // 1. SOLUCIÓN AL ERROR DE TIMEZONE:
+      // Usamos 'var' para que Dart no pelee por el tipo de dato y lo convierta a texto
+      final timeZoneName = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(timeZoneName.toString()));
+    } catch (e) {
+      debugPrint("Error configurando zona horaria: $e");
+    }
+
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
     const InitializationSettings initializationSettings =
         InitializationSettings(android: initializationSettingsAndroid);
 
-    // 1. EL APRETÓN DE MANOS: Pedir permisos en tiempo real a Android 13+
     final androidImplementation = _notificationsPlugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -26,7 +36,8 @@ class NotificationService {
       await androidImplementation.requestExactAlarmsPermission();
     }
 
-    // FIX: Agregada la etiqueta 'settings:' que pide la nueva versión
+    // 2. SOLUCIÓN AL ERROR DE 'settings':
+    // En tu versión, el parámetro DEBE llamarse 'settings'
     await _notificationsPlugin.initialize(settings: initializationSettings);
   }
 
@@ -37,11 +48,11 @@ class NotificationService {
     required DateTime scheduledTime,
   }) async {
     tz.TZDateTime scheduledDate = tz.TZDateTime.from(scheduledTime, tz.local);
+
     if (scheduledDate.isBefore(tz.TZDateTime.now(tz.local))) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
 
-    // FIX: Agregadas TODAS las etiquetas nombradas (id:, title:, body:, etc.)
     await _notificationsPlugin.zonedSchedule(
       id: id,
       title: title,
@@ -49,9 +60,9 @@ class NotificationService {
       scheduledDate: scheduledDate,
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
-          'habit_channel_v2',
+          'habit_channel_v3',
           'Recordatorios de Hábitos',
-          channelDescription: 'Canal para las alertas de hábitos diarios',
+          channelDescription: 'Alertas de hábitos diarios',
           importance: Importance.max,
           priority: Priority.high,
           playSound: true,
@@ -60,8 +71,8 @@ class NotificationService {
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      // FIX: Este parámetro (uiLocalNotificationDateInterpretation) fue eliminado en las versiones nuevas,
-      // así que lo quitamos para que no marque error. matchDateTimeComponents sigue siendo válido.
+      // 3. SOLUCIÓN AL ERROR DE 'uiLocalNotificationDateInterpretation':
+      // Se eliminó por completo en las versiones nuevas, así que lo quitamos.
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }

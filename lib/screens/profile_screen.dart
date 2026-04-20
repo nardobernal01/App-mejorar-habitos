@@ -8,6 +8,7 @@ import 'package:in_app_review/in_app_review.dart';
 import 'package:share_plus/share_plus.dart';
 import '../providers/habit_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -227,8 +228,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             centerTitle: true,
             actions: [
+              // --- NUEVO BOTÓN DE CERRAR SESIÓN CON ADVERTENCIA ---
               IconButton(
-                icon: Icon(Icons.edit_rounded, color: textColor),
+                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      title: const Text(
+                        "Cerrar Sesión",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      content: const Text(
+                        "¿Estás seguro de que deseas salir de tu cuenta?",
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text(
+                            "Cancelar",
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () async {
+                            Navigator.pop(ctx); // Cierra el diálogo
+                            await provider.signOut();
+                            if (!context.mounted) return;
+
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const LoginScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          },
+                          child: const Text("Salir"),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              // --- BOTÓN DE EDITAR PERFIL ---
+              IconButton(
+                icon: const Icon(Icons.edit_rounded),
                 onPressed: () => _showEditProfileDialog(provider),
               ),
             ],
@@ -282,7 +337,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 .currentUser!
                                                 .photoURL!,
                                         fit: BoxFit.cover,
-                                        // Si el enlace de Google falla, mostramos el icono por defecto
                                         errorBuilder:
                                             (context, error, stackTrace) {
                                               return const Icon(
@@ -554,40 +608,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(width: 16),
+                    // --- NUEVO BOTÓN PRESIONABLE DE BIOMETRÍA ---
                     Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: provider.useBiometrics
-                              ? const Color(0xFF10B981).withValues(alpha: 0.1)
-                              : isDark
-                              ? Colors.white10
-                              : Colors.black.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
+                      child: GestureDetector(
+                        onTap: () {
+                          SystemSound.play(SystemSoundType.click);
+                          HapticFeedback.lightImpact();
+                          provider.toggleBiometrics();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
                             color: provider.useBiometrics
-                                ? const Color(0xFF10B981)
-                                : Colors.transparent,
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.fingerprint_rounded,
-                              size: 32,
+                                ? const Color(0xFF10B981).withValues(alpha: 0.1)
+                                : isDark
+                                ? Colors.white10
+                                : Colors.black.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
                               color: provider.useBiometrics
                                   ? const Color(0xFF10B981)
-                                  : Colors.grey,
+                                  : Colors.transparent,
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              provider.useBiometrics ? "Seguro" : "Sin Bloqueo",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: textColor,
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.fingerprint_rounded,
+                                size: 32,
+                                color: provider.useBiometrics
+                                    ? const Color(0xFF10B981)
+                                    : Colors.grey,
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 8),
+                              Text(
+                                provider.useBiometrics
+                                    ? "Seguro"
+                                    : "Sin Bloqueo",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: textColor,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

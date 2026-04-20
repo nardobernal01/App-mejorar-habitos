@@ -1,13 +1,14 @@
-import 'services/notification_service.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 
+import 'services/notification_service.dart';
 import 'providers/habit_provider.dart';
-
 import 'screens/habit_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +16,7 @@ void main() async {
   await Firebase.initializeApp();
   await NotificationService.init();
   final prefs = await SharedPreferences.getInstance();
-  // Asumimos que si ya vio el Onboarding y está registrado, va directo a HabitScreen
+
   final bool hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
 
   runApp(
@@ -202,15 +203,8 @@ class BloomYourDayApp extends StatelessWidget {
     return MaterialApp(
       title: 'Bloom Your Day',
       debugShowCheckedModeBanner: false,
-
-      // El tema base de tu app (tu _buildTheme original)
       theme: _buildTheme(AppThemeMode.light),
       darkTheme: _buildTheme(AppThemeMode.dark),
-
-      // --- LA LÓGICA INTELIGENTE DEL TEMA ---
-      // 1. Si currentMode es 'light' explícitamente, forzamos claro.
-      // 2. Si currentMode es 'dark' o un tema premium oscuro, forzamos oscuro.
-      // 3. De lo contrario (o si es 'system'), obedece al celular de inmediato.
       themeMode: currentMode == AppThemeMode.light
           ? ThemeMode.light
           : (currentMode == AppThemeMode.dark ||
@@ -219,8 +213,59 @@ class BloomYourDayApp extends StatelessWidget {
           ? ThemeMode.dark
           : ThemeMode.system,
 
-      // --------------------------------------
-      home: const HabitScreen(),
+      home: Consumer<HabitProvider>(
+        builder: (context, provider, child) {
+          if (!provider.isAuthenticated) {
+            return const LoginScreen();
+          }
+          if (!hasSeenOnboarding) {
+            return const OnboardingScreen();
+          }
+          if (provider.useBiometrics && !provider.isUnlocked) {
+            return Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.lock_person_rounded,
+                      size: 80,
+                      color: Color(0xFF10B981),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      "App Protegida",
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                      ),
+                      onPressed: provider.unlockAppWithBiometrics,
+                      icon: const Icon(Icons.fingerprint_rounded),
+                      label: const Text(
+                        "Desbloquear",
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return const HabitScreen();
+        },
+      ),
     );
   }
 }
