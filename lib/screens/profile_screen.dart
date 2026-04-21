@@ -418,7 +418,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                               Text(
-                                "${provider.playerXP} / ${provider.xpPerLevel} XP",
+                                "${provider.currentLevelXP} / ${provider.xpPerLevel} XP",
                                 style: TextStyle(
                                   color: textColor,
                                   fontWeight: FontWeight.bold,
@@ -430,7 +430,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: LinearProgressIndicator(
-                              value: provider.playerXP / provider.xpPerLevel,
+                              value: provider.levelProgress,
                               backgroundColor: isDark
                                   ? Colors.white10
                                   : Colors.black.withValues(alpha: 0.05),

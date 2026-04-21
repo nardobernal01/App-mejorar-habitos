@@ -8,11 +8,10 @@ import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:lottie/lottie.dart';
-
-// NUEVOS IMPORTS
 import 'package:confetti/confetti.dart';
-import '../widgets/empty_state_widget.dart';
+import 'package:flutter/foundation.dart'; // <--- Permite detectar si estamos en Web
 
+import '../widgets/empty_state_widget.dart';
 import '../models/habit_model.dart';
 import '../providers/habit_provider.dart';
 import 'profile_screen.dart';
@@ -27,8 +26,6 @@ class _HabitScreenState extends State<HabitScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _habitController = TextEditingController();
   final ScreenshotController _screenshotController = ScreenshotController();
-
-  // CONTROLADOR DEL CONFETI
   late ConfettiController _confettiController;
 
   final List<Color> _palette = [
@@ -56,8 +53,6 @@ class _HabitScreenState extends State<HabitScreen>
   @override
   void initState() {
     super.initState();
-
-    // INICIALIZAR CONFETI
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 2),
     );
@@ -65,9 +60,7 @@ class _HabitScreenState extends State<HabitScreen>
 
   @override
   void dispose() {
-    // LIMPIAR CONFETI
     _confettiController.dispose();
-
     _habitController.dispose();
     super.dispose();
   }
@@ -90,9 +83,7 @@ class _HabitScreenState extends State<HabitScreen>
         );
       }
     } catch (e) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Error al compartir')));
@@ -101,15 +92,9 @@ class _HabitScreenState extends State<HabitScreen>
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
-    if (hour < 5) {
-      return "Buenas madrugadas";
-    }
-    if (hour < 12) {
-      return "Buenos días";
-    }
-    if (hour < 19) {
-      return "Buenas tardes";
-    }
+    if (hour < 5) return "Buenas madrugadas";
+    if (hour < 12) return "Buenos días";
+    if (hour < 19) return "Buenas tardes";
     return "Buenas noches";
   }
 
@@ -343,7 +328,6 @@ class _HabitScreenState extends State<HabitScreen>
   void _showStatsModal(HabitProvider provider) {
     SystemSound.play(SystemSoundType.click);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     int totalCompletions = provider.myHabits.fold(
       0,
       (sum, habit) => sum + habit.streak,
@@ -409,41 +393,49 @@ class _HabitScreenState extends State<HabitScreen>
                 ),
                 const SizedBox(height: 20),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildStatCard(
-                      "Tasa Éxito",
-                      "${successRate.toInt()}%",
-                      Icons.pie_chart_rounded,
-                      const Color(0xFF10B981),
-                      isDark,
+                    Expanded(
+                      child: _buildStatCard(
+                        "Tasa Éxito",
+                        "${successRate.toInt()}%",
+                        Icons.pie_chart_rounded,
+                        const Color(0xFF10B981),
+                        isDark,
+                      ),
                     ),
-                    _buildStatCard(
-                      "Racha",
-                      "$maxStreak",
-                      Icons.local_fire_department_rounded,
-                      const Color(0xFFF59E0B),
-                      isDark,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildStatCard(
+                        "Racha",
+                        "$maxStreak",
+                        Icons.local_fire_department_rounded,
+                        const Color(0xFFF59E0B),
+                        isDark,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildStatCard(
-                      "Completados",
-                      "$totalCompletions",
-                      Icons.check_circle_rounded,
-                      const Color(0xFF3B82F6),
-                      isDark,
+                    Expanded(
+                      child: _buildStatCard(
+                        "Completados",
+                        "$totalCompletions",
+                        Icons.check_circle_rounded,
+                        const Color(0xFF3B82F6),
+                        isDark,
+                      ),
                     ),
-                    _buildStatCard(
-                      "Hábitos",
-                      "${provider.myHabits.length}",
-                      Icons.format_list_bulleted_rounded,
-                      const Color(0xFF8B5CF6),
-                      isDark,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildStatCard(
+                        "Hábitos",
+                        "${provider.myHabits.length}",
+                        Icons.format_list_bulleted_rounded,
+                        const Color(0xFF8B5CF6),
+                        isDark,
+                      ),
                     ),
                   ],
                 ),
@@ -464,7 +456,6 @@ class _HabitScreenState extends State<HabitScreen>
     bool isDark,
   ) {
     return Container(
-      width: MediaQuery.of(context).size.width * 0.4,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark
@@ -575,7 +566,6 @@ class _HabitScreenState extends State<HabitScreen>
                       ),
                     ),
                     const SizedBox(height: 20),
-
                     Expanded(
                       child: SingleChildScrollView(
                         child: Column(
@@ -598,7 +588,6 @@ class _HabitScreenState extends State<HabitScreen>
                               ),
                             ),
                             const SizedBox(height: 24),
-
                             Text(
                               "Programación",
                               style: TextStyle(
@@ -724,9 +713,7 @@ class _HabitScreenState extends State<HabitScreen>
                                 ),
                               ],
                             ),
-
                             const SizedBox(height: 24),
-
                             if (selectedDate == null) ...[
                               Text(
                                 "Repetir los días",
@@ -805,7 +792,6 @@ class _HabitScreenState extends State<HabitScreen>
                                 ),
                               ),
                             ],
-
                             if (selectedTime != null) ...[
                               const SizedBox(height: 16),
                               SwitchListTile(
@@ -834,7 +820,6 @@ class _HabitScreenState extends State<HabitScreen>
                                     setDS(() => triggerAlarm = val),
                               ),
                             ],
-
                             const SizedBox(height: 24),
                             Text(
                               "Color",
@@ -953,7 +938,6 @@ class _HabitScreenState extends State<HabitScreen>
                         ),
                       ),
                     ),
-
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -1033,9 +1017,8 @@ class _HabitScreenState extends State<HabitScreen>
               });
             }
 
-            if (focusTimer == null) {
-              startTimer();
-            }
+            if (focusTimer == null) startTimer();
+
             String formatTime(int seconds) {
               int min = seconds ~/ 60;
               int sec = seconds % 60;
@@ -1072,8 +1055,6 @@ class _HabitScreenState extends State<HabitScreen>
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
-                    // ... (código anterior: Icono, Modo Focus, Título) ...
                     Text(
                       habit.title,
                       style: TextStyle(
@@ -1083,20 +1064,17 @@ class _HabitScreenState extends State<HabitScreen>
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 30), // Espacio antes del reloj
-                    // AQUÍ ESTÁ EL RELOJ GIGANTE (Asegúrate de tener esto)
+                    const SizedBox(height: 30),
                     Text(
                       formatTime(timeLeft),
                       style: TextStyle(
-                        fontSize: 60, // ¡Reloj grande!
+                        fontSize: 60,
                         fontWeight: FontWeight.w900,
                         color: habit.dynamicColor,
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
-
-                    const SizedBox(height: 15), // Espacio antes del aviso
-                    // AQUÍ VA NUESTRO NUEVO AVISO DE LA BOMBILLA
+                    const SizedBox(height: 15),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -1115,9 +1093,7 @@ class _HabitScreenState extends State<HabitScreen>
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 30), // Espacio antes de los botones
-                    // ... (código siguiente: Row con los botones de play/pause) ...
+                    const SizedBox(height: 30),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(
@@ -1323,7 +1299,6 @@ class _HabitScreenState extends State<HabitScreen>
     }
 
     String statusMessage = "¡A por todas hoy!";
-
     if (displayedHabits.isNotEmpty) {
       if (progress == 0) {
         statusMessage = "¡Empieza tu primer hábito!";
@@ -1335,7 +1310,6 @@ class _HabitScreenState extends State<HabitScreen>
         statusMessage = "¡Día perfecto, felicidades!";
       }
     }
-
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
     final subTextColor = isDark ? Colors.white70 : Colors.black54;
@@ -1347,77 +1321,78 @@ class _HabitScreenState extends State<HabitScreen>
         ? Colors.amber.withValues(alpha: 0.1)
         : const Color(0xFF10B981).withValues(alpha: 0.15);
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600),
-        child: Screenshot(
-          controller: _screenshotController,
-          // AQUÍ EMPIEZA LA MAGIA DEL STACK Y CONFETI
-          child: Stack(
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+          ),
+          child: Row(
             children: [
-              Scaffold(
-                appBar: AppBar(
-                  title: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ProfileScreen(),
-                        ),
-                      );
-                    },
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFFF59E0B,
-                            ).withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.person_rounded,
-                                size: 18,
-                                color: Color(0xFFF59E0B),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                "Nvl ${provider.playerLevel}",
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFF59E0B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          "Bloom Your Day",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.person_rounded,
+                      size: 18,
+                      color: Color(0xFFF59E0B),
                     ),
-                  ),
-                  actions: [
-                    IconButton(
-                      icon: Icon(Icons.bar_chart_rounded, color: subTextColor),
-                      onPressed: () => _showStatsModal(provider),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.palette_rounded, color: subTextColor),
-                      onPressed: () => _showThemePicker(provider),
+                    const SizedBox(width: 6),
+                    Text(
+                      "Nvl ${provider.playerLevel}",
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFF59E0B),
+                      ),
                     ),
                   ],
                 ),
-                body: Column(
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                "Bloom Your Day",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.bar_chart_rounded, color: subTextColor),
+            onPressed: () => _showStatsModal(provider),
+          ),
+          IconButton(
+            icon: Icon(Icons.palette_rounded, color: subTextColor),
+            onPressed: () => _showThemePicker(provider),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showHabitDialog(),
+        backgroundColor: const Color(0xFF2563EB),
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Icon(Icons.add, color: Colors.white, size: 28),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Screenshot(
+            controller: _screenshotController,
+            child: Stack(
+              children: [
+                Column(
                   children: [
                     Container(
                       margin: const EdgeInsets.fromLTRB(16, 10, 16, 10),
@@ -1463,7 +1438,6 @@ class _HabitScreenState extends State<HabitScreen>
                               ),
                             ],
                           ),
-                          const SizedBox(height: 5),
                           const SizedBox(height: 5),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1598,55 +1572,74 @@ class _HabitScreenState extends State<HabitScreen>
                         ),
                       ),
                     Expanded(
-                      // AQUÍ APLICAMOS LA MAGIA DEL EMPTY STATE
                       child: displayedHabits.isEmpty
                           ? const EmptyStateWidget()
-                          : ListView.builder(
-                              padding: const EdgeInsets.only(bottom: 100),
-                              itemCount: displayedHabits.length,
-                              itemBuilder: (context, index) => _buildHabitCard(
-                                displayedHabits[index],
-                                provider.myHabits.indexOf(
-                                  displayedHabits[index],
-                                ),
-                                isDark,
-                                textColor,
-                                subTextColor,
-                                provider,
-                                reorderable: false,
-                              ),
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                return ListView.builder(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  itemCount: displayedHabits.length,
+                                  itemBuilder: (context, index) =>
+                                      _buildHabitCard(
+                                        displayedHabits[index],
+                                        provider.myHabits.indexOf(
+                                          displayedHabits[index],
+                                        ),
+                                        isDark,
+                                        textColor,
+                                        subTextColor,
+                                        provider,
+                                        reorderable: false,
+                                      ),
+                                );
+                              },
                             ),
                     ),
+                    // ---> AQUÍ COLOCAMOS EL BANNER AL FONDO DE TOD
+                    if (provider.isAuthenticated)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        color: Colors.blueAccent.withValues(alpha: 0.05),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.cloud_done_rounded,
+                              size: 14,
+                              color: Colors.blueAccent,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              "Sincronizado con la nube",
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.blueAccent,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
-                floatingActionButton: FloatingActionButton(
-                  onPressed: () => _showHabitDialog(),
-                  backgroundColor: const Color(0xFF2563EB),
-                  elevation: 6,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: ConfettiWidget(
+                    confettiController: _confettiController,
+                    blastDirectionality: BlastDirectionality.explosive,
+                    shouldLoop: false,
+                    colors: const [
+                      Color(0xFF10B981),
+                      Colors.blue,
+                      Colors.orange,
+                      Colors.pink,
+                      Colors.purple,
+                    ],
                   ),
-                  child: const Icon(Icons.add, color: Colors.white, size: 28),
                 ),
-              ),
-
-              // EL CAÑÓN DE CONFETI EN LA CIMA DEL STACK
-              Align(
-                alignment: Alignment.topCenter,
-                child: ConfettiWidget(
-                  confettiController: _confettiController,
-                  blastDirectionality: BlastDirectionality.explosive,
-                  shouldLoop: false,
-                  colors: const [
-                    Color(0xFF10B981),
-                    Colors.blue,
-                    Colors.orange,
-                    Colors.pink,
-                    Colors.purple,
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1712,13 +1705,9 @@ class _HabitScreenState extends State<HabitScreen>
             return true;
           },
           onDismissed: (_) {
-            // Guardamos una copia temporal antes de borrar
             final deletedHabit = habit;
-
-            // Borramos el hábito de la base de datos
             provider.deleteHabit(realIndex);
 
-            // Mostramos el mensaje para "Deshacer"
             ScaffoldMessenger.of(context).clearSnackBars();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -1728,9 +1717,8 @@ class _HabitScreenState extends State<HabitScreen>
                 duration: const Duration(seconds: 4),
                 action: SnackBarAction(
                   label: 'DESHACER',
-                  textColor: const Color(0xFF10B981), // Verde esmeralda
+                  textColor: const Color(0xFF10B981),
                   onPressed: () {
-                    // Si se arrepiente, lo volvemos a meter a la base de datos
                     provider.addOrUpdateHabit(
                       deletedHabit.title,
                       deletedHabit.dynamicColor,
@@ -1769,7 +1757,6 @@ class _HabitScreenState extends State<HabitScreen>
             color: itemBgColor,
             child: InkWell(
               onTap: () {
-                // CONFETI SOLO AL 100% DE HÁBITOS
                 if (!habit.isCompleted) {
                   final now = DateTime.now();
                   final todayHabits = provider.myHabits.where((h) {
@@ -1895,15 +1882,25 @@ class _HabitScreenState extends State<HabitScreen>
                                   ),
                                 ],
                               ),
-                              child: OverflowBox(
-                                maxWidth: 80,
-                                maxHeight: 80,
-                                child: Lottie.asset(
-                                  'assets/animations/success.json',
-                                  repeat: false,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
+                              child: kIsWeb
+                                  ? Center(
+                                      child: Icon(
+                                        Icons.check_rounded,
+                                        size: 32,
+                                        color: isLightColor
+                                            ? Colors.white
+                                            : Colors.black87,
+                                      ),
+                                    )
+                                  : OverflowBox(
+                                      maxWidth: 80,
+                                      maxHeight: 80,
+                                      child: Lottie.asset(
+                                        'assets/animations/success.json',
+                                        repeat: false,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
                             )
                           : Icon(
                               Icons.circle_outlined,

@@ -3,7 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
-
+import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'providers/habit_provider.dart';
 import 'screens/habit_screen.dart';
@@ -13,7 +13,7 @@ import 'screens/onboarding_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   tz.initializeTimeZones();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService.init();
   final prefs = await SharedPreferences.getInstance();
 
@@ -31,9 +31,16 @@ class BloomYourDayApp extends StatelessWidget {
   final bool hasSeenOnboarding;
   const BloomYourDayApp({super.key, required this.hasSeenOnboarding});
 
-  ThemeData _buildTheme(AppThemeMode mode) {
+  // 1. Añadimos BuildContext para poder leer el tema del celular
+  ThemeData _buildTheme(AppThemeMode mode, BuildContext context) {
+    // MAGIA: Si el usuario tiene "Sistema", leemos si el celular está en modo oscuro
+    if (mode == AppThemeMode.system) {
+      final isDeviceDark =
+          MediaQuery.of(context).platformBrightness == Brightness.dark;
+      mode = isDeviceDark ? AppThemeMode.dark : AppThemeMode.light;
+    }
+
     switch (mode) {
-      case AppThemeMode.system:
       case AppThemeMode.light:
         return ThemeData(
           brightness: Brightness.light,
@@ -194,24 +201,30 @@ class BloomYourDayApp extends StatelessWidget {
           ),
           useMaterial3: true,
         );
+      default:
+        return ThemeData(
+          brightness: Brightness.light,
+          scaffoldBackgroundColor: const Color(0xFFF4F7F9),
+          cardColor: Colors.white,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF2563EB),
+            brightness: Brightness.light,
+          ),
+          useMaterial3: true,
+        );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final currentMode = context.watch<HabitProvider>().currentTheme;
+
     return MaterialApp(
       title: 'Bloom Your Day',
       debugShowCheckedModeBanner: false,
-      theme: _buildTheme(AppThemeMode.light),
-      darkTheme: _buildTheme(AppThemeMode.dark),
-      themeMode: currentMode == AppThemeMode.light
-          ? ThemeMode.light
-          : (currentMode == AppThemeMode.dark ||
-                currentMode == AppThemeMode.dracula ||
-                currentMode == AppThemeMode.amoled)
-          ? ThemeMode.dark
-          : ThemeMode.system,
+
+      // 2. Le pasamos el currentMode directamente a theme y quitamos los demás
+      theme: _buildTheme(currentMode, context),
 
       home: Consumer<HabitProvider>(
         builder: (context, provider, child) {

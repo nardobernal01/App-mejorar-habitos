@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/habit_provider.dart';
-import 'onboarding_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,12 +17,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController ageCtrl = TextEditingController();
   String selectedGender = "Prefiero no decirlo";
 
-  // --- NUEVA FUNCIÓN: Autenticación REAL con Correo/Contraseña ---
+  // --- FUNCIÓN: Autenticación REAL con Correo/Contraseña ---
   Future<void> _handleEmailAuth() async {
     final email = emailCtrl.text.trim();
     final password = passCtrl.text.trim();
 
-    // 1. Validaciones básicas
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Por favor, llena correo y contraseña.")),
@@ -34,7 +31,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final provider = context.read<HabitProvider>();
 
-    // 2. Mostrar círculo de carga
+    // FIX: Capturamos el navegador raíz antes del proceso asíncrono
+    final nav = Navigator.of(context, rootNavigator: true);
+
+    // Mostrar círculo de carga
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -45,22 +45,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
     String? errorMessage;
 
-    // 3. Ejecutar Registro o Inicio de Sesión
     if (isLoginMode) {
       errorMessage = await provider.signInWithEmail(email, password);
     } else {
       final name = nameCtrl.text.trim();
       final age = ageCtrl.text.trim();
       if (name.isEmpty) {
-        if (!mounted) {
-          return;
+        nav.pop(); // Cerramos el círculo usando el navegador capturado
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Ingresa tu nombre para crear la cuenta."),
+            ),
+          );
         }
-        Navigator.pop(context); // Cerrar loading
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Ingresa tu nombre para crear la cuenta."),
-          ),
-        );
         return;
       }
       errorMessage = await provider.registerWithEmail(
@@ -72,39 +70,27 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     }
 
-    // 4. Cerrar círculo de carga
-    if (!mounted) {
-      return;
-    }
-    Navigator.pop(context);
+    // FIX: Cerramos el círculo de carga con seguridad sin depender de 'mounted'
+    nav.pop();
 
-    // 5. Analizar resultado
-    if (errorMessage == null && provider.isAuthenticated) {
-      // ÉXITO: Guardamos estado y vamos a Onboarding
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('hasSeenOnboarding', true);
-
-      if (!mounted) {
-        return;
+    if (errorMessage != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-      );
-    } else if (errorMessage != null) {
-      // ERROR: Mostramos qué salió mal
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
     }
   }
 
-  // --- FUNCIÓN GOOGLE (Intacta y funcional) ---
+  // --- FUNCIÓN GOOGLE ---
   Future<void> _handleGoogleSignIn() async {
     final provider = context.read<HabitProvider>();
+
+    // FIX: Capturamos el navegador raíz
+    final nav = Navigator.of(context, rootNavigator: true);
 
     showDialog(
       context: context,
@@ -116,23 +102,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     await provider.authenticate();
 
-    if (!mounted) {
-      return;
-    }
-    Navigator.pop(context);
-
-    if (provider.isAuthenticated) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('hasSeenOnboarding', true);
-
-      if (!mounted) {
-        return;
-      }
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-      );
-    }
+    // FIX: Cerramos el círculo de carga mágicamente.
+    nav.pop();
   }
 
   @override
@@ -246,7 +217,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // BOTÓN CONECTADO A FIREBASE
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.all(16),
@@ -256,8 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onPressed:
-                      _handleEmailAuth, // <-- Ahora llama al proceso real
+                  onPressed: _handleEmailAuth,
                   child: Text(
                     isLoginMode ? "Iniciar Sesión" : "Crear Cuenta",
                     style: const TextStyle(
@@ -271,15 +240,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 _buildDivider(),
                 const SizedBox(height: 24),
 
-                // BOTÓN GOOGLE
                 _buildSocialButton(
                   "Continuar con Google",
                   Icons.g_mobiledata_rounded,
                   textColor,
                   _handleGoogleSignIn,
                 ),
-
-                // ¡ADIÓS AL BOTÓN DE APPLE!
               ],
             ),
           ),
@@ -344,7 +310,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildDivider() {
     return Row(
       children: [
-        Expanded(child: Divider(color: Colors.grey.withAlpha(50))),
+        Expanded(child: Divider(color: Colors.grey.withValues(alpha: 50))),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
           child: Text(
@@ -352,7 +318,7 @@ class _LoginScreenState extends State<LoginScreen> {
             style: TextStyle(color: Colors.grey, fontSize: 12),
           ),
         ),
-        Expanded(child: Divider(color: Colors.grey.withAlpha(50))),
+        Expanded(child: Divider(color: Colors.grey.withValues(alpha: 50))),
       ],
     );
   }

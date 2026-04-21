@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:local_auth/local_auth.dart';
 import '../models/habit_model.dart';
 import '../services/notification_service.dart';
+import 'package:flutter/foundation.dart';
 
 enum AppThemeMode {
   system,
@@ -31,13 +32,13 @@ class HabitProvider with ChangeNotifier {
   String _currentFilter = "Todas";
   bool _isPremiumUnlocked = false;
   bool _isAuthenticated = false;
+  bool _hasSeenOnboarding = false;
   AppThemeMode _currentTheme = AppThemeMode.system;
 
   String _userAge = "25";
   String _userGender = "Prefiero no decirlo";
   String? _userPhotoPath;
   bool _useBiometrics = false;
-
   bool _isUnlocked = false;
 
   int _playerXP = 0;
@@ -49,6 +50,7 @@ class HabitProvider with ChangeNotifier {
   String? get userPhotoPath => _userPhotoPath;
   bool get useBiometrics => _useBiometrics;
   bool get isUnlocked => _isUnlocked;
+  bool get hasSeenOnboarding => _hasSeenOnboarding;
   int get playerXP => _playerXP;
   int get xpPerLevel => _xpPerLevel;
   Map<DateTime, int> get heatmapDatasets => _heatmapDatasets;
@@ -59,9 +61,9 @@ class HabitProvider with ChangeNotifier {
   bool get isAuthenticated => _isAuthenticated;
   AppThemeMode get currentTheme => _currentTheme;
 
-  String get playerLevel =>
-      (_myHabits.fold(0, (int total, h) => total + h.streak) ~/ 10 + 1)
-          .toString();
+  String get playerLevel => ((_playerXP ~/ _xpPerLevel) + 1).toString();
+  int get currentLevelXP => _playerXP % _xpPerLevel;
+  double get levelProgress => currentLevelXP / _xpPerLevel;
 
   HabitProvider() {
     _loadLocalData();
@@ -70,15 +72,24 @@ class HabitProvider with ChangeNotifier {
         _userName = user.displayName ?? "Usuario";
         _userPhotoPath = user.photoURL;
         _isAuthenticated = true;
+        _isUnlocked = true;
         _loadHabitsFromFirestore();
         notifyListeners();
       } else {
         _isAuthenticated = false;
         _isUnlocked = false;
         _myHabits = [];
+        _heatmapDatasets.clear();
         notifyListeners();
       }
     });
+  }
+
+  Future<void> completeOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasSeenOnboarding', true);
+    _hasSeenOnboarding = true;
+    notifyListeners();
   }
 
   Future<void> unlockAppWithBiometrics() async {
@@ -88,7 +99,6 @@ class HabitProvider with ChangeNotifier {
         localizedReason: 'Por favor, autentícate para acceder a tus hábitos',
         biometricOnly: false,
       );
-
       if (didAuthenticate) {
         _isUnlocked = true;
         notifyListeners();
@@ -104,14 +114,10 @@ class HabitProvider with ChangeNotifier {
     String gender,
     String? photoPath,
   ) {
-    if (name.isNotEmpty) {
-      _userName = name;
-    }
+    if (name.isNotEmpty) _userName = name;
     _userAge = age;
     _userGender = gender;
-    if (photoPath != null) {
-      _userPhotoPath = photoPath;
-    }
+    if (photoPath != null) _userPhotoPath = photoPath;
     _saveLocalData();
     notifyListeners();
   }
@@ -156,87 +162,161 @@ class HabitProvider with ChangeNotifier {
 
   Future<void> authenticate() async {
     try {
-      await _googleSignIn.initialize();
-      await _googleSignIn.signOut();
+      if (kIsWeb) {
+        final googleProvider = GoogleAuthProvider();
+        final userCredential = await _auth.signInWithPopup(googleProvider);
+        final user = userCredential.user;
 
-      // --- CORRECCIÓN EXACTA APLICADA AQUÍ ---
-      final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
-      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
-      // ---------------------------------------
+        if (user != null) {
+          _userName = user.displayName ?? "Usuario";
+          _userPhotoPath = user.photoURL;
+          _isAuthenticated = true;
+          _isUnlocked = true;
+          await _saveLocalData();
+          await _loadHabitsFromFirestore();
+          notifyListeners();
+        }
+      } else {
+        await _googleSignIn.signOut();
 
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        idToken: googleAuth.idToken,
-      );
+        final googleUser = await _googleSignIn.authenticate();
 
-      final UserCredential userCredential = await _auth.signInWithCredential(
-        credential,
-      );
-      final User? user = userCredential.user;
+        final googleAuth = googleUser.authentication;
+        final credential = GoogleAuthProvider.credential(
+          idToken: googleAuth.idToken,
+        );
 
-      if (user != null) {
-        _userName = user.displayName ?? "Usuario";
-        _userPhotoPath = user.photoURL;
-        _isAuthenticated = true;
-        _isUnlocked = true;
-        await _saveLocalData();
-        await _loadHabitsFromFirestore();
-        notifyListeners();
+        final userCredential = await _auth.signInWithCredential(credential);
+        final user = userCredential.user;
+
+        if (user != null) {
+          _userName = user.displayName ?? "Usuario";
+          _userPhotoPath = user.photoURL;
+          _isAuthenticated = true;
+          _isUnlocked = true;
+          await _saveLocalData();
+          await _loadHabitsFromFirestore();
+          notifyListeners();
+        }
       }
     } catch (e) {
-      debugPrint("Error en Google Sign-In: $e");
+      debugPrint("Error en Autenticación: $e");
     }
   }
 
   Future<void> signOut() async {
-    await _googleSignIn.signOut();
+    if (!kIsWeb) {
+      await _googleSignIn.signOut();
+    }
     await _auth.signOut();
     _isAuthenticated = false;
     _isUnlocked = false;
     _myHabits = [];
+    _heatmapDatasets.clear();
     notifyListeners();
   }
 
   Future<void> _loadHabitsFromFirestore() async {
     final user = _auth.currentUser;
-    if (user == null) {
-      return;
-    }
+    if (user == null) return;
     try {
       final snapshot = await _firestore
           .collection('users')
           .doc(user.uid)
           .collection('habits')
           .get();
-      _myHabits = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return Habit(
-            id: doc.id,
-            title: data['title'] ?? 'Sin título',
-            color: Color(data['colorValue'] ?? 0xFF10B981),
-            iconCodePoint: data['iconCodePoint'] ?? Icons.star.codePoint,
-            reminderTime: data['reminderTime'],
-            activeDays: List<int>.from(
-              data['activeDays'] ?? [1, 2, 3, 4, 5, 6, 7],
-            ),
-            isAlarm: data['isAlarm'] ?? false,
-            specificDate: data['specificDate'] != null
-                ? DateTime.parse(data['specificDate'])
-                : null,
-          )
-          ..isCompleted = data['isCompleted'] ?? false
-          ..streak = data['streak'] ?? 0;
-      }).toList();
+
+      _myHabits = snapshot.docs
+          .map((doc) {
+            final data = doc.data();
+            return Habit(
+                id: doc.id,
+                title: data['title'] ?? 'Sin título',
+                color: Color(data['colorValue'] ?? 0xFF10B981),
+                iconCodePoint: data['iconCodePoint'] ?? Icons.star.codePoint,
+                reminderTime: data['reminderTime'],
+                activeDays: List<int>.from(
+                  data['activeDays'] ?? [1, 2, 3, 4, 5, 6, 7],
+                ),
+                isAlarm: data['isAlarm'] ?? false,
+                specificDate: data['specificDate'] != null
+                    ? DateTime.parse(data['specificDate'])
+                    : null,
+              )
+              ..isCompleted = data['isCompleted'] ?? false
+              ..streak = data['streak'] ?? 0;
+          })
+          .toList()
+          .reversed
+          .toList();
+
+      await _processDailyResets();
+      await _loadHeatmapData();
+
       notifyListeners();
     } catch (e) {
       debugPrint("Error cargando desde la nube: $e");
     }
   }
 
+  Future<void> _processDailyResets() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? lastDateStr = prefs.getString('lastOpenDate');
+    final DateTime now = DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day);
+
+    if (lastDateStr != null) {
+      final DateTime lastOpen = DateTime.parse(lastDateStr);
+      final int difference = today.difference(lastOpen).inDays;
+
+      if (difference > 0) {
+        bool needsCloudUpdate = false;
+        for (var habit in _myHabits) {
+          if (difference > 1 || (difference == 1 && !habit.isCompleted)) {
+            if (habit.streak > 0) {
+              habit.streak = 0;
+              needsCloudUpdate = true;
+            }
+          }
+          if (habit.isCompleted) {
+            habit.isCompleted = false;
+            needsCloudUpdate = true;
+          }
+          if (needsCloudUpdate) {
+            _saveHabitToFirestore(habit);
+          }
+        }
+      }
+    }
+    await prefs.setString('lastOpenDate', today.toIso8601String());
+  }
+
+  Future<void> _loadHeatmapData() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('completion_history')
+          .get();
+      _heatmapDatasets.clear();
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        if (data['date'] != null && data['count'] != null) {
+          final date = (data['date'] as Timestamp).toDate();
+          final cleanDate = DateTime(date.year, date.month, date.day);
+          _heatmapDatasets[cleanDate] = data['count'] as int;
+        }
+      }
+    } catch (e) {
+      debugPrint("Error cargando heatmap: $e");
+    }
+  }
+
   Future<void> _saveHabitToFirestore(Habit habit) async {
     final user = _auth.currentUser;
-    if (user == null) {
-      return;
-    }
+    if (user == null) return;
     await _firestore
         .collection('users')
         .doc(user.uid)
@@ -244,7 +324,11 @@ class HabitProvider with ChangeNotifier {
         .doc(habit.id)
         .set({
           'title': habit.title,
+
+          // --- AQUÍ ESTÁ LA CORRECCIÓN EXACTA A .toARGB32() ---
           'colorValue': habit.dynamicColor.toARGB32(),
+
+          // ---------------------------------------------------
           'iconCodePoint': habit.iconCodePoint,
           'reminderTime': habit.reminderTime,
           'activeDays': habit.activeDays,
@@ -265,9 +349,7 @@ class HabitProvider with ChangeNotifier {
     bool isAlarm = false,
     DateTime? specificDate,
   }) {
-    if (title.isEmpty) {
-      return;
-    }
+    if (title.isEmpty) return;
     final String currentId = index != null
         ? _myHabits[index].id
         : DateTime.now().millisecondsSinceEpoch.toString();
@@ -281,25 +363,21 @@ class HabitProvider with ChangeNotifier {
       isAlarm: isAlarm,
       specificDate: specificDate,
     );
+
     if (index != null) {
       newHabit.streak = _myHabits[index].streak;
       newHabit.isCompleted = _myHabits[index].isCompleted;
       _myHabits[index] = newHabit;
     } else {
-      _myHabits.add(newHabit);
+      _myHabits.insert(0, newHabit);
     }
     _saveHabitToFirestore(newHabit);
-    // ... todo el código anterior de addOrUpdateHabit ...
-    _saveHabitToFirestore(newHabit);
 
-    // --- NUEVA LÓGICA DE ALARMAS CONECTADA A TU SERVICIO ---
-    if (newHabit.isAlarm && newHabit.reminderTime != null) {
+    if (!kIsWeb && newHabit.isAlarm && newHabit.reminderTime != null) {
       try {
-        // Tu reminderTime probablemente viene como "14:30" (String), lo separamos:
         final parts = newHabit.reminderTime!.split(':');
         if (parts.length == 2) {
           final now = DateTime.now();
-          // Creamos la fecha exacta de hoy a esa hora
           final scheduledTime = DateTime(
             now.year,
             now.month,
@@ -307,13 +385,10 @@ class HabitProvider with ChangeNotifier {
             int.parse(parts[0]),
             int.parse(parts[1]),
           );
-
-          // ¡Llamamos a tu función con su nombre y parámetros reales!
           NotificationService.scheduleNotification(
             id: newHabit.id.hashCode,
-            title: '¡Es hora de tu hábito!', // <-- Un título más descriptivo
-            body:
-                'Es momento de: ${newHabit.title}', // <-- Incluye el nombre del hábito de forma clara
+            title: '¡Es hora de tu hábito!',
+            body: newHabit.title,
             scheduledTime: scheduledTime,
           );
         }
@@ -321,51 +396,66 @@ class HabitProvider with ChangeNotifier {
         debugPrint("Error programando alarma: $e");
       }
     }
-    // --------------------------------------------------------
-
     notifyListeners();
   }
 
   void toggleHabitCompletion(Habit habit, BuildContext context) async {
+    int oldLevel = int.parse(playerLevel);
+
     habit.isCompleted = !habit.isCompleted;
     if (habit.isCompleted) {
       habit.streak++;
       _playerXP += 15;
     } else if (habit.streak > 0) {
       habit.streak--;
-      _playerXP = (_playerXP - 15).clamp(0, 99999);
+      _playerXP = (_playerXP - 15).clamp(0, 999999);
     }
+
+    if (int.parse(playerLevel) > oldLevel) {
+      _showLevelUpDialog(context);
+    }
+
     _saveHabitToFirestore(habit);
     _saveLocalData();
-
-    final user = _auth.currentUser;
-    if (user != null) {
-      final today = DateTime.now();
-      final dateKey = "${today.year}-${today.month}-${today.day}";
-      final historyRef = _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('completion_history')
-          .doc(dateKey);
-
-      try {
-        if (habit.isCompleted) {
-          await historyRef.set({
-            'date': Timestamp.fromDate(
-              DateTime(today.year, today.month, today.day),
-            ),
-            'count': FieldValue.increment(1),
-          }, SetOptions(merge: true));
-        } else {
-          await historyRef.set({
-            'count': FieldValue.increment(-1),
-          }, SetOptions(merge: true));
-        }
-      } catch (e) {
-        debugPrint("Error guardando en historial: $e");
-      }
-    }
     notifyListeners();
+  }
+
+  void _showLevelUpDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text("¡SUBISTE DE NIVEL! 🎊", textAlign: TextAlign.center),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.workspace_premium_rounded,
+              size: 80,
+              color: Colors.amber,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              "¡Felicidades! Ahora eres Nivel $playerLevel",
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const Text(
+              "Sigue así para desbloquear más recompensas.",
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          Center(
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("¡Entendido!"),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void deleteHabit(int index) {
@@ -386,14 +476,19 @@ class HabitProvider with ChangeNotifier {
   Future<void> _loadLocalData() async {
     final prefs = await SharedPreferences.getInstance();
     _isPremiumUnlocked = prefs.getBool('isPremium') ?? false;
+    _hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
     _userAge = prefs.getString('userAge') ?? "25";
     _userGender = prefs.getString('userGender') ?? "Prefiero no decirlo";
     _useBiometrics = prefs.getBool('useBiometrics') ?? false;
     _playerXP = prefs.getInt('playerXP') ?? 0;
     int themeIndex = prefs.getInt('themeIndex') ?? 0;
-
     if (themeIndex >= 0 && themeIndex < AppThemeMode.values.length) {
       _currentTheme = AppThemeMode.values[themeIndex];
+    }
+    if (kIsWeb) {
+      _isPremiumUnlocked = true;
+    } else {
+      _isPremiumUnlocked = prefs.getBool('isPremium') ?? false;
     }
   }
 
