@@ -45,7 +45,7 @@ class DefaultFirebaseOptions {
     appId: '1:572831008190:web:eec54fd6962c9b33a965ef',
     messagingSenderId: '572831008190',
     projectId: 'bloomyourday-dd658',
-    authDomain: 'bloomyourday-dd658.firebaseapp.com',
+    authDomain: 'bloomyourday.web.app', // 🔥 AQUÍ ESTÁ EL CAMBIO SALVAVIDAS
     storageBucket: 'bloomyourday-dd658.firebasestorage.app',
   );
 
@@ -63,8 +63,10 @@ class DefaultFirebaseOptions {
     messagingSenderId: '572831008190',
     projectId: 'bloomyourday-dd658',
     storageBucket: 'bloomyourday-dd658.firebasestorage.app',
-    androidClientId: '572831008190-4q3mulv08o5fu77sk9s9j4r4r4r1trkm.apps.googleusercontent.com',
-    iosClientId: '572831008190-1e4m3d4ll8uon3to255a894vht7e3r0p.apps.googleusercontent.com',
+    androidClientId:
+        '572831008190-4q3mulv08o5fu77sk9s9j4r4r4r1trkm.apps.googleusercontent.com',
+    iosClientId:
+        '572831008190-1e4m3d4ll8uon3to255a894vht7e3r0p.apps.googleusercontent.com',
     iosBundleId: 'com.example.vitalHabit',
   );
 
@@ -74,8 +76,10 @@ class DefaultFirebaseOptions {
     messagingSenderId: '572831008190',
     projectId: 'bloomyourday-dd658',
     storageBucket: 'bloomyourday-dd658.firebasestorage.app',
-    androidClientId: '572831008190-4q3mulv08o5fu77sk9s9j4r4r4r1trkm.apps.googleusercontent.com',
-    iosClientId: '572831008190-1e4m3d4ll8uon3to255a894vht7e3r0p.apps.googleusercontent.com',
+    androidClientId:
+        '572831008190-4q3mulv08o5fu77sk9s9j4r4r4r1trkm.apps.googleusercontent.com',
+    iosClientId:
+        '572831008190-1e4m3d4ll8uon3to255a894vht7e3r0p.apps.googleusercontent.com',
     iosBundleId: 'com.example.vitalHabit',
   );
 

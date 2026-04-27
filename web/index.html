@@ -149,6 +149,18 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+    <!-- Google Identity Services para Sign-In web sin cookies de terceros -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+      window.handleGoogleCredential = function (response) {
+        // Guardar el credential para que Flutter lo use
+        window._googleIdToken = response.credential;
+        // Notificar a Flutter
+        if (window._googleSignInCallback) {
+          window._googleSignInCallback(response.credential);
+        }
+      };
+    </script>
     <script src="flutter_bootstrap.js" async=""></script>
   </body>
 </html>
