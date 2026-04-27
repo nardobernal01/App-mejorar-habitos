@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
+import 'dart:ui';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'providers/habit_provider.dart';
@@ -19,25 +20,42 @@ void main() async {
 
   final bool hasSeenOnboarding = prefs.getBool('hasSeenOnboarding') ?? false;
 
+  final navigatorKey = GlobalKey<NavigatorState>();
+
   runApp(
     MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => HabitProvider())],
-      child: BloomYourDayApp(hasSeenOnboarding: hasSeenOnboarding),
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) {
+            final provider = HabitProvider();
+            provider.registerNavigatorKey(navigatorKey);
+            return provider;
+          },
+        ),
+      ],
+      child: BloomYourDayApp(
+        hasSeenOnboarding: hasSeenOnboarding,
+        navigatorKey: navigatorKey,
+      ),
     ),
   );
 }
 
 class BloomYourDayApp extends StatelessWidget {
   final bool hasSeenOnboarding;
-  const BloomYourDayApp({super.key, required this.hasSeenOnboarding});
+  final GlobalKey<NavigatorState> navigatorKey;
+  const BloomYourDayApp({
+    super.key,
+    required this.hasSeenOnboarding,
+    required this.navigatorKey,
+  });
 
-  // 1. Añadimos BuildContext para poder leer el tema del celular
-  ThemeData _buildTheme(AppThemeMode mode, BuildContext context) {
-    // MAGIA: Si el usuario tiene "Sistema", leemos si el celular está en modo oscuro
+  ThemeData _buildTheme(AppThemeMode mode) {
     if (mode == AppThemeMode.system) {
-      final isDeviceDark =
-          MediaQuery.of(context).platformBrightness == Brightness.dark;
-      mode = isDeviceDark ? AppThemeMode.dark : AppThemeMode.light;
+      final brightness = PlatformDispatcher.instance.platformBrightness;
+      mode = (brightness == Brightness.dark)
+          ? AppThemeMode.dark
+          : AppThemeMode.light;
     }
 
     switch (mode) {
@@ -94,6 +112,7 @@ class BloomYourDayApp extends StatelessWidget {
           brightness: Brightness.dark,
           scaffoldBackgroundColor: const Color(0xFF282A36),
           appBarTheme: const AppBarTheme(
+            // Ya es const, no hace falta en los hijos
             backgroundColor: Colors.transparent,
             elevation: 0,
             foregroundColor: Color(0xFFF8F8F2),
@@ -222,10 +241,8 @@ class BloomYourDayApp extends StatelessWidget {
     return MaterialApp(
       title: 'Bloom Your Day',
       debugShowCheckedModeBanner: false,
-
-      // 2. Le pasamos el currentMode directamente a theme y quitamos los demás
-      theme: _buildTheme(currentMode, context),
-
+      navigatorKey: navigatorKey,
+      theme: _buildTheme(currentMode),
       home: Consumer<HabitProvider>(
         builder: (context, provider, child) {
           if (!provider.isAuthenticated) {
@@ -234,6 +251,7 @@ class BloomYourDayApp extends StatelessWidget {
           if (!hasSeenOnboarding) {
             return const OnboardingScreen();
           }
+
           if (provider.useBiometrics && !provider.isUnlocked) {
             return Scaffold(
               body: Center(

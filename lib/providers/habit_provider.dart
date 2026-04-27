@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -6,7 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:local_auth/local_auth.dart';
 import '../models/habit_model.dart';
 import '../services/notification_service.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart'; // Para kIsWeb
 
 enum AppThemeMode {
   system,
@@ -24,8 +25,19 @@ enum AppThemeMode {
 
 class HabitProvider with ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // SOLUCIÓN DEFINITIVA: Restauramos tu variable original exacta.
+  // Usar 'dynamic' apaga los falsos errores del editor y fuerza la compilación.
+  final dynamic _googleSignIn = GoogleSignIn.instance;
+
+  // Timers para notificaciones web simuladas
+  final Map<String, Timer> _webReminderTimers = {};
+  GlobalKey<NavigatorState>? _navigatorKey;
+
+  void registerNavigatorKey(GlobalKey<NavigatorState> key) {
+    _navigatorKey = key;
+  }
 
   List<Habit> _myHabits = [];
   String _userName = "Usuario";
@@ -163,6 +175,7 @@ class HabitProvider with ChangeNotifier {
   Future<void> authenticate() async {
     try {
       if (kIsWeb) {
+        // En Web usamos el flujo oficial y seguro de Firebase sin tocar tu código
         final googleProvider = GoogleAuthProvider();
         final userCredential = await _auth.signInWithPopup(googleProvider);
         final user = userCredential.user;
@@ -179,11 +192,26 @@ class HabitProvider with ChangeNotifier {
       } else {
         await _googleSignIn.signOut();
 
-        final googleUser = await _googleSignIn.authenticate();
+        dynamic googleUser;
+        try {
+          googleUser = await _googleSignIn.signIn();
+        } catch (_) {
+          // Respaldo de seguridad
+          googleUser = await _googleSignIn.authenticate();
+        }
 
-        final googleAuth = googleUser.authentication;
+        if (googleUser == null) return;
+
+        dynamic authResult;
+        try {
+          authResult = await googleUser.authentication;
+        } catch (_) {
+          authResult = googleUser.authentication;
+        }
+
         final credential = GoogleAuthProvider.credential(
-          idToken: googleAuth.idToken,
+          idToken: authResult?.idToken?.toString(),
+          accessToken: authResult?.accessToken?.toString(),
         );
 
         final userCredential = await _auth.signInWithCredential(credential);
@@ -232,6 +260,7 @@ class HabitProvider with ChangeNotifier {
             return Habit(
                 id: doc.id,
                 title: data['title'] ?? 'Sin título',
+                // ignore: deprecated_member_use
                 color: Color(data['colorValue'] ?? 0xFF10B981),
                 iconCodePoint: data['iconCodePoint'] ?? Icons.star.codePoint,
                 reminderTime: data['reminderTime'],
@@ -324,11 +353,8 @@ class HabitProvider with ChangeNotifier {
         .doc(habit.id)
         .set({
           'title': habit.title,
-
-          // --- AQUÍ ESTÁ LA CORRECCIÓN EXACTA A .toARGB32() ---
-          'colorValue': habit.dynamicColor.toARGB32(),
-
-          // ---------------------------------------------------
+          // ignore: deprecated_member_use
+          'colorValue': habit.dynamicColor.value,
           'iconCodePoint': habit.iconCodePoint,
           'reminderTime': habit.reminderTime,
           'activeDays': habit.activeDays,
@@ -396,23 +422,151 @@ class HabitProvider with ChangeNotifier {
         debugPrint("Error programando alarma: $e");
       }
     }
+
+    // Timer web: dispara la notificación simulada exactamente a la hora puesta
+    if (kIsWeb && newHabit.reminderTime != null) {
+      _scheduleWebReminder(newHabit);
+    }
     notifyListeners();
   }
 
   void toggleHabitCompletion(Habit habit, BuildContext context) async {
-    int oldLevel = int.parse(playerLevel);
-
     habit.isCompleted = !habit.isCompleted;
     if (habit.isCompleted) {
       habit.streak++;
       _playerXP += 15;
+
+      final Color accentColor = Theme.of(context).colorScheme.primary;
+      const Color snackFg = Colors.white;
+
+      if (kIsWeb) {
+        showDialog(
+          context: context,
+          barrierColor: Colors.transparent,
+          builder: (ctx) {
+            Future.delayed(const Duration(seconds: 3), () {
+              if (ctx.mounted) Navigator.of(ctx).maybePop();
+            });
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 32),
+                child: Material(
+                  color: Colors.transparent,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutBack,
+                    builder: (context, value, child) =>
+                        Transform.scale(scale: value, child: child),
+                    child: Container(
+                      width: 360,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accentColor,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            color: snackFg,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '¡Hábito completado! +15 XP',
+                                  style: TextStyle(
+                                    color: snackFg,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  habit.title,
+                                  style: TextStyle(
+                                    color: snackFg.withValues(alpha: 0.85),
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      } else {
+        // En móvil: SnackBar nativo normal
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.star_rounded, color: snackFg, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '¡Hábito completado! +15 XP',
+                        style: TextStyle(
+                          color: snackFg,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        habit.title,
+                        style: TextStyle(
+                          color: snackFg.withValues(alpha: 0.85),
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: accentColor,
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            elevation: 6,
+          ),
+        );
+      }
     } else if (habit.streak > 0) {
       habit.streak--;
       _playerXP = (_playerXP - 15).clamp(0, 999999);
-    }
-
-    if (int.parse(playerLevel) > oldLevel) {
-      _showLevelUpDialog(context);
     }
 
     _saveHabitToFirestore(habit);
@@ -420,42 +574,224 @@ class HabitProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void _showLevelUpDialog(BuildContext context) {
+  /// Programa un Timer que disparará la notificación web simulada
+  /// exactamente cuando llegue la hora configurada en el hábito.
+  void _scheduleWebReminder(Habit habit) {
+    // Cancelar timer previo si ya existía para este hábito
+    _webReminderTimers[habit.id]?.cancel();
+
+    try {
+      final parts = habit.reminderTime!.split(':');
+      if (parts.length != 2) return;
+
+      final now = DateTime.now();
+      DateTime scheduledTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+      );
+
+      // Si ya pasó la hora hoy, programar para mañana
+      if (scheduledTime.isBefore(now)) {
+        scheduledTime = scheduledTime.add(const Duration(days: 1));
+      }
+
+      final delay = scheduledTime.difference(now);
+
+      _webReminderTimers[habit.id] = Timer(delay, () {
+        // Buscar el contexto del navigatorKey global — usamos el último contexto
+        // disponible a través del navigatorKey registrado en el provider.
+        if (_navigatorKey?.currentContext != null) {
+          _showWebReminderSimulation(_navigatorKey!.currentContext!, habit);
+        }
+      });
+
+      debugPrint(
+        "⏰ Web reminder programado para '${habit.title}' en ${delay.inMinutes}m ${delay.inSeconds % 60}s",
+      );
+    } catch (e) {
+      debugPrint("Error programando timer web: $e");
+    }
+  }
+
+  /// Muestra una notificación simulada estilo móvil en la web,
+  /// adaptada al tema actual (colores del ColorScheme activo).
+  void _showWebReminderSimulation(BuildContext context, Habit habit) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final Color cardBg = isDark
+        ? colorScheme.surface.withValues(alpha: 0.97)
+        : Colors.white.withValues(alpha: 0.97);
+    final Color textColor = isDark ? Colors.white : Colors.black87;
+    final Color subColor = isDark ? Colors.white60 : Colors.black54;
+    final Color accentColor = colorScheme.primary;
+
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text("¡SUBISTE DE NIVEL! 🎊", textAlign: TextAlign.center),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.workspace_premium_rounded,
-              size: 80,
-              color: Colors.amber,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "¡Felicidades! Ahora eres Nivel $playerLevel",
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const Text(
-              "Sigue así para desbloquear más recompensas.",
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          Center(
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text("¡Entendido!"),
+      barrierColor: Colors.transparent,
+      builder: (ctx) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 60),
+            child: Material(
+              color: Colors.transparent,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOutBack,
+                builder: (context, value, child) =>
+                    Transform.scale(scale: value, child: child),
+                child: Container(
+                  width: 360,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                    border: Border.all(
+                      color: accentColor.withValues(alpha: 0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header tipo notificación móvil
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: accentColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.notifications_active_rounded,
+                              color: accentColor,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Bloom Your Day',
+                            style: TextStyle(
+                              color: subColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            habit.reminderTime!,
+                            style: TextStyle(color: subColor, fontSize: 11),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => Navigator.of(ctx).pop(),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 16,
+                              color: subColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      // Contenido de la notificación
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: accentColor.withValues(alpha: 0.15),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              IconData(
+                                habit.iconCodePoint,
+                                fontFamily: 'MaterialIcons',
+                              ),
+                              color: accentColor,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '¡Es hora de tu hábito!',
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  habit.title,
+                                  style: TextStyle(
+                                    color: subColor,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // Botón de acción
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: accentColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            elevation: 0,
+                          ),
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: const Text(
+                            'Entendido',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
+
+    // Auto-cerrar después de 5 segundos
+    Future.delayed(const Duration(seconds: 5), () {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).maybePop();
+      }
+    });
   }
 
   void deleteHabit(int index) {

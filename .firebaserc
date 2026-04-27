@@ -1,0 +1,13 @@
+{
+  "projects": {},
+  "targets": {
+    "bloomyourday-dd658": {
+      "hosting": {
+        "app": [
+          "bloomyourday"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

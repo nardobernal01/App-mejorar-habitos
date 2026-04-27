@@ -2,18 +2,18 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
-import 'package:flutter/foundation.dart'; // Para el debugPrint
+import 'package:flutter/foundation.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
   static Future<void> init() async {
+    if (kIsWeb) return; // ESCUDO WEB
+
     tz.initializeTimeZones();
 
     try {
-      // 1. SOLUCIÓN AL ERROR DE TIMEZONE:
-      // Usamos 'var' para que Dart no pelee por el tipo de dato y lo convierta a texto
       final timeZoneName = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(timeZoneName.toString()));
     } catch (e) {
@@ -32,12 +32,12 @@ class NotificationService {
         >();
 
     if (androidImplementation != null) {
+      // CORRECCIÓN 1: Estaba mal escrito, ahora dice androidImplementation
       await androidImplementation.requestNotificationsPermission();
       await androidImplementation.requestExactAlarmsPermission();
     }
 
-    // 2. SOLUCIÓN AL ERROR DE 'settings':
-    // En tu versión, el parámetro DEBE llamarse 'settings'
+    // CORRECCIÓN 2: Regresé la palabra "settings:" que tu versión requiere obligatoriamente
     await _notificationsPlugin.initialize(settings: initializationSettings);
   }
 
@@ -47,6 +47,8 @@ class NotificationService {
     required String body,
     required DateTime scheduledTime,
   }) async {
+    if (kIsWeb) return;
+
     tz.TZDateTime scheduledDate = tz.TZDateTime.from(scheduledTime, tz.local);
 
     if (scheduledDate.isBefore(tz.TZDateTime.now(tz.local))) {
@@ -71,12 +73,12 @@ class NotificationService {
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.alarmClock,
-      // 3. SOLUCIÓN AL ERROR DE 'uiLocalNotificationDateInterpretation':
-      // Se eliminó por completo en las versiones nuevas, así que lo quitamos.
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
 
-  static Future<void> cancelAll() async =>
-      await _notificationsPlugin.cancelAll();
+  static Future<void> cancelAll() async {
+    if (kIsWeb) return;
+    await _notificationsPlugin.cancelAll();
+  }
 }

@@ -11,8 +11,37 @@ class RealHeatmap extends StatefulWidget {
 
 class _RealHeatmapState extends State<RealHeatmap> {
   DateTime _selectedMonth = DateTime.now();
+  final ScrollController _scrollController = ScrollController();
 
-  // Función para cambiar de mes con las flechas
+  // Ancho de cada columna de día (24px barra + 12px padding = 36px)
+  static const double _itemWidth = 36.0;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToToday() {
+    final now = DateTime.now();
+    if (_selectedMonth.month != now.month || _selectedMonth.year != now.year) {
+      return;
+    }
+    final double offset = (now.day - 1) * _itemWidth - 100;
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        offset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   void _changeMonth(int offset) {
     setState(() {
       _selectedMonth = DateTime(
@@ -21,6 +50,7 @@ class _RealHeatmapState extends State<RealHeatmap> {
         1,
       );
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToToday());
   }
 
   @override
@@ -73,6 +103,9 @@ class _RealHeatmapState extends State<RealHeatmap> {
             ),
           );
         }
+
+        // Scroll al día de hoy una vez que el ListView ya está en pantalla
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToToday());
 
         // Traducimos los datos de Firebase a un mapa rápido
         Map<DateTime, int> historyData = {};
@@ -166,11 +199,11 @@ class _RealHeatmapState extends State<RealHeatmap> {
 
                 // LA GRÁFICA DE BARRAS CLÁSICA (Scroll horizontal)
                 SizedBox(
-                  height: 150, // Altura de la zona de gráfica
+                  height: 150,
                   child: ListView.builder(
+                    controller: _scrollController,
                     scrollDirection: Axis.horizontal,
                     itemCount: days.length,
-                    // Empezar el scroll al final si estamos en el mes actual para ver el día de hoy
                     reverse: false,
                     itemBuilder: (context, index) {
                       final day = days[index];

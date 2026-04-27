@@ -9,7 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:lottie/lottie.dart';
 import 'package:confetti/confetti.dart';
-import 'package:flutter/foundation.dart'; // <--- Permite detectar si estamos en Web
+import 'package:flutter/foundation.dart';
 
 import '../widgets/empty_state_widget.dart';
 import '../models/habit_model.dart';
@@ -543,438 +543,502 @@ class _HabitScreenState extends State<HabitScreen>
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: StatefulBuilder(
               builder: (context, setDS) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(10),
+                bool nameError = false;
+                return StatefulBuilder(
+                  builder: (context, setValidation) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      isEdit ? "Editar Hábito" : "Nuevo Hábito",
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            TextField(
-                              controller: _habitController,
-                              style: TextStyle(
-                                color: isDark ? Colors.white : Colors.black87,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: "Ej. Leer 10 páginas, Cumpleaños...",
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                filled: true,
-                                fillColor: isDark
-                                    ? Colors.white10
-                                    : Colors.black.withValues(alpha: 0.05),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            Text(
-                              "Programación",
-                              style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black54,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
+                        const SizedBox(height: 20),
+                        Text(
+                          isEdit ? "Editar Hábito" : "Nuevo Hábito",
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: InkWell(
-                                    onTap: () async {
-                                      final time = await showTimePicker(
-                                        context: context,
-                                        initialTime:
-                                            selectedTime ?? TimeOfDay.now(),
-                                      );
-                                      if (time != null) {
-                                        setDS(() => selectedTime = time);
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: selectedTime != null
-                                            ? const Color(
-                                                0xFF2563EB,
-                                              ).withValues(alpha: 0.1)
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: selectedTime != null
-                                              ? const Color(0xFF2563EB)
-                                              : Colors.grey,
-                                        ),
+                                TextField(
+                                  controller: _habitController,
+                                  onChanged: (_) {
+                                    if (nameError) {
+                                      setValidation(() => nameError = false);
+                                    }
+                                  },
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? Colors.white
+                                        : Colors.black87,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText:
+                                        "Ej. Leer 10 páginas, Cumpleaños...",
+                                    errorText: nameError
+                                        ? "Por favor escribe un nombre para el hábito"
+                                        : null,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: nameError
+                                            ? Colors.red
+                                            : Colors.grey,
+                                        width: nameError ? 1.5 : 1.0,
                                       ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.access_time_rounded,
-                                            size: 18,
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: nameError
+                                            ? Colors.red
+                                            : const Color(0xFF2563EB),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    filled: true,
+                                    fillColor: nameError
+                                        ? Colors.red.withValues(alpha: 0.05)
+                                        : (isDark
+                                              ? Colors.white10
+                                              : Colors.black.withValues(
+                                                  alpha: 0.05,
+                                                )),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                Text(
+                                  "Programación",
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? Colors.white70
+                                        : Colors.black54,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: InkWell(
+                                        onTap: () async {
+                                          final time = await showTimePicker(
+                                            context: context,
+                                            initialTime:
+                                                selectedTime ?? TimeOfDay.now(),
+                                          );
+                                          if (time != null) {
+                                            setDS(() => selectedTime = time);
+                                          }
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
                                             color: selectedTime != null
-                                                ? const Color(0xFF2563EB)
-                                                : Colors.grey,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            selectedTime != null
-                                                ? selectedTime!.format(context)
-                                                : "Hora",
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
+                                                ? const Color(
+                                                    0xFF2563EB,
+                                                  ).withValues(alpha: 0.1)
+                                                : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
                                               color: selectedTime != null
                                                   ? const Color(0xFF2563EB)
                                                   : Colors.grey,
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: InkWell(
-                                    onTap: () async {
-                                      final date = await showDatePicker(
-                                        context: context,
-                                        initialDate:
-                                            selectedDate ?? DateTime.now(),
-                                        firstDate: DateTime.now(),
-                                        lastDate: DateTime(2030),
-                                      );
-                                      if (date != null) {
-                                        setDS(() => selectedDate = date);
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: selectedDate != null
-                                            ? const Color(
-                                                0xFFF59E0B,
-                                              ).withValues(alpha: 0.1)
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: selectedDate != null
-                                              ? const Color(0xFFF59E0B)
-                                              : Colors.grey,
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.access_time_rounded,
+                                                size: 18,
+                                                color: selectedTime != null
+                                                    ? const Color(0xFF2563EB)
+                                                    : Colors.grey,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                selectedTime != null
+                                                    ? selectedTime!.format(
+                                                        context,
+                                                      )
+                                                    : "Hora",
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: selectedTime != null
+                                                      ? const Color(0xFF2563EB)
+                                                      : Colors.grey,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.calendar_month_rounded,
-                                            size: 18,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: InkWell(
+                                        onTap: () async {
+                                          final date = await showDatePicker(
+                                            context: context,
+                                            initialDate:
+                                                selectedDate ?? DateTime.now(),
+                                            firstDate: DateTime.now(),
+                                            lastDate: DateTime(2030),
+                                          );
+                                          if (date != null) {
+                                            setDS(() => selectedDate = date);
+                                          }
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
                                             color: selectedDate != null
-                                                ? const Color(0xFFF59E0B)
-                                                : Colors.grey,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            selectedDate != null
-                                                ? "${selectedDate!.day}/${selectedDate!.month}"
-                                                : "Fecha Única",
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
+                                                ? const Color(
+                                                    0xFFF59E0B,
+                                                  ).withValues(alpha: 0.1)
+                                                : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
                                               color: selectedDate != null
                                                   ? const Color(0xFFF59E0B)
                                                   : Colors.grey,
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            if (selectedDate == null) ...[
-                              Text(
-                                "Repetir los días",
-                                style: TextStyle(
-                                  color: isDark
-                                      ? Colors.white70
-                                      : Colors.black54,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: List.generate(7, (index) {
-                                  int dayValue = index + 1;
-                                  bool isSelected = selectedDays.contains(
-                                    dayValue,
-                                  );
-                                  return FilterChip(
-                                    label: Text(dayLabels[index]),
-                                    selected: isSelected,
-                                    selectedColor: selectedColor.withValues(
-                                      alpha: 0.3,
-                                    ),
-                                    checkmarkColor: selectedColor,
-                                    onSelected: (val) {
-                                      setDS(() {
-                                        if (val) {
-                                          selectedDays.add(dayValue);
-                                        } else if (selectedDays.length > 1) {
-                                          selectedDays.remove(dayValue);
-                                        }
-                                      });
-                                    },
-                                  );
-                                }),
-                              ),
-                            ] else ...[
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFFF59E0B,
-                                  ).withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.event_available_rounded,
-                                      color: Color(0xFFF59E0B),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Expanded(
-                                      child: Text(
-                                        "Evento único programado",
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFFF59E0B),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.calendar_month_rounded,
+                                                size: 18,
+                                                color: selectedDate != null
+                                                    ? const Color(0xFFF59E0B)
+                                                    : Colors.grey,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                selectedDate != null
+                                                    ? "${selectedDate!.day}/${selectedDate!.month}"
+                                                    : "Fecha Única",
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: selectedDate != null
+                                                      ? const Color(0xFFF59E0B)
+                                                      : Colors.grey,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.close_rounded,
-                                        color: Colors.grey,
-                                        size: 20,
-                                      ),
-                                      onPressed: () =>
-                                          setDS(() => selectedDate = null),
-                                      constraints: const BoxConstraints(),
-                                      padding: EdgeInsets.zero,
-                                    ),
                                   ],
                                 ),
-                              ),
-                            ],
-                            if (selectedTime != null) ...[
-                              const SizedBox(height: 16),
-                              SwitchListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(
-                                  "Recibir recordatorio",
+                                const SizedBox(height: 24),
+                                if (selectedDate == null) ...[
+                                  Text(
+                                    "Repetir los días",
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? Colors.white70
+                                          : Colors.black54,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: List.generate(7, (index) {
+                                      int dayValue = index + 1;
+                                      bool isSelected = selectedDays.contains(
+                                        dayValue,
+                                      );
+                                      return FilterChip(
+                                        label: Text(dayLabels[index]),
+                                        selected: isSelected,
+                                        selectedColor: selectedColor.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                        checkmarkColor: selectedColor,
+                                        onSelected: (val) {
+                                          setDS(() {
+                                            if (val) {
+                                              selectedDays.add(dayValue);
+                                            } else if (selectedDays.length >
+                                                1) {
+                                              selectedDays.remove(dayValue);
+                                            }
+                                          });
+                                        },
+                                      );
+                                    }),
+                                  ),
+                                ] else ...[
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFFF59E0B,
+                                      ).withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.event_available_rounded,
+                                          color: Color(0xFFF59E0B),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Expanded(
+                                          child: Text(
+                                            "Evento único programado",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFFF59E0B),
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.close_rounded,
+                                            color: Colors.grey,
+                                            size: 20,
+                                          ),
+                                          onPressed: () =>
+                                              setDS(() => selectedDate = null),
+                                          constraints: const BoxConstraints(),
+                                          padding: EdgeInsets.zero,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                if (selectedTime != null) ...[
+                                  const SizedBox(height: 16),
+                                  SwitchListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(
+                                      "Recibir recordatorio",
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? Colors.white70
+                                            : Colors.black87,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      "Sonará incluso en silencio",
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? Colors.white54
+                                            : Colors.black54,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    value: triggerAlarm,
+                                    activeThumbColor: const Color(0xFFEF4444),
+                                    onChanged: (val) =>
+                                        setDS(() => triggerAlarm = val),
+                                  ),
+                                ],
+                                const SizedBox(height: 24),
+                                Text(
+                                  "Color",
                                   style: TextStyle(
                                     color: isDark
                                         ? Colors.white70
-                                        : Colors.black87,
+                                        : Colors.black54,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                subtitle: Text(
-                                  "Sonará incluso en silencio",
+                                const SizedBox(height: 12),
+                                GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 4,
+                                        mainAxisSpacing: 16,
+                                        crossAxisSpacing: 16,
+                                      ),
+                                  itemCount: _palette.length,
+                                  itemBuilder: (context, idx) {
+                                    final c = _palette[idx];
+                                    return GestureDetector(
+                                      onTap: () {
+                                        SystemSound.play(SystemSoundType.click);
+                                        setDS(() => selectedColor = c);
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 200,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color:
+                                                selectedColor.toARGB32() ==
+                                                    c.toARGB32()
+                                                ? c
+                                                : Colors.transparent,
+                                            width: 3,
+                                          ),
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(3.0),
+                                          child: CircleAvatar(
+                                            backgroundColor: c,
+                                            child:
+                                                selectedColor.toARGB32() ==
+                                                    c.toARGB32()
+                                                ? const Icon(
+                                                    Icons.check,
+                                                    size: 20,
+                                                    color: Colors.white,
+                                                  )
+                                                : null,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 24),
+                                Text(
+                                  "Ícono",
                                   style: TextStyle(
                                     color: isDark
-                                        ? Colors.white54
+                                        ? Colors.white70
                                         : Colors.black54,
-                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                value: triggerAlarm,
-                                activeThumbColor: const Color(0xFFEF4444),
-                                onChanged: (val) =>
-                                    setDS(() => triggerAlarm = val),
-                              ),
-                            ],
-                            const SizedBox(height: 24),
-                            Text(
-                              "Color",
-                              style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black54,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 4,
-                                    mainAxisSpacing: 16,
-                                    crossAxisSpacing: 16,
-                                  ),
-                              itemCount: _palette.length,
-                              itemBuilder: (context, idx) {
-                                final c = _palette[idx];
-                                return GestureDetector(
-                                  onTap: () {
-                                    SystemSound.play(SystemSoundType.click);
-                                    setDS(() => selectedColor = c);
+                                const SizedBox(height: 12),
+                                GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 4,
+                                        mainAxisSpacing: 12,
+                                        crossAxisSpacing: 12,
+                                      ),
+                                  itemCount: _iconList.length,
+                                  itemBuilder: (context, idx) {
+                                    final iconData = _iconList[idx];
+                                    return GestureDetector(
+                                      onTap: () {
+                                        SystemSound.play(SystemSoundType.click);
+                                        setDS(() => selectedIcon = iconData);
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 200,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: selectedIcon == iconData
+                                              ? selectedColor.withValues(
+                                                  alpha: 0.15,
+                                                )
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          border: Border.all(
+                                            color: selectedIcon == iconData
+                                                ? selectedColor
+                                                : Colors.transparent,
+                                            width: 2.5,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          iconData,
+                                          color: selectedIcon == iconData
+                                              ? selectedColor
+                                              : (isDark
+                                                    ? Colors.white54
+                                                    : Colors.black54),
+                                          size: 28,
+                                        ),
+                                      ),
+                                    );
                                   },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color:
-                                            selectedColor.toARGB32() ==
-                                                c.toARGB32()
-                                            ? c
-                                            : Colors.transparent,
-                                        width: 3,
-                                      ),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(3.0),
-                                      child: CircleAvatar(
-                                        backgroundColor: c,
-                                        child:
-                                            selectedColor.toARGB32() ==
-                                                c.toARGB32()
-                                            ? const Icon(
-                                                Icons.check,
-                                                size: 20,
-                                                color: Colors.white,
-                                              )
-                                            : null,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
+                                ),
+                                const SizedBox(height: 100),
+                              ],
                             ),
-                            const SizedBox(height: 24),
-                            Text(
-                              "Ícono",
-                              style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black54,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 4,
-                                    mainAxisSpacing: 12,
-                                    crossAxisSpacing: 12,
-                                  ),
-                              itemCount: _iconList.length,
-                              itemBuilder: (context, idx) {
-                                final iconData = _iconList[idx];
-                                return GestureDetector(
-                                  onTap: () {
-                                    SystemSound.play(SystemSoundType.click);
-                                    setDS(() => selectedIcon = iconData);
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    decoration: BoxDecoration(
-                                      color: selectedIcon == iconData
-                                          ? selectedColor.withValues(
-                                              alpha: 0.15,
-                                            )
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: selectedIcon == iconData
-                                            ? selectedColor
-                                            : Colors.transparent,
-                                        width: 2.5,
-                                      ),
-                                    ),
-                                    child: Icon(
-                                      iconData,
-                                      color: selectedIcon == iconData
-                                          ? selectedColor
-                                          : (isDark
-                                                ? Colors.white54
-                                                : Colors.black54),
-                                      size: 28,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 100),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        onPressed: () {
-                          String? rStr = selectedTime != null
-                              ? "${selectedTime!.hour}:${selectedTime!.minute.toString().padLeft(2, '0')}"
-                              : null;
-                          provider.addOrUpdateHabit(
-                            _habitController.text,
-                            selectedColor,
-                            selectedIcon.codePoint,
-                            rStr,
-                            index: index,
-                            activeDays: selectedDays,
-                            isAlarm: triggerAlarm,
-                            specificDate: selectedDate,
-                          );
-                          Navigator.pop(context);
-                        },
-                        child: Text(
-                          isEdit ? "Guardar Cambios" : "Añadir a mi Día",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2563EB),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () {
+                              final name = _habitController.text.trim();
+                              // VALIDACIÓN: nombre obligatorio
+                              if (name.isEmpty) {
+                                setValidation(() => nameError = true);
+                                HapticFeedback.vibrate();
+                                return;
+                              }
+                              String? rStr = selectedTime != null
+                                  ? "${selectedTime!.hour}:${selectedTime!.minute.toString().padLeft(2, '0')}"
+                                  : null;
+                              provider.addOrUpdateHabit(
+                                name,
+                                selectedColor,
+                                selectedIcon.codePoint,
+                                rStr,
+                                index: index,
+                                activeDays: selectedDays,
+                                isAlarm: triggerAlarm,
+                                specificDate: selectedDate,
+                              );
+                              Navigator.pop(context);
+                            },
+                            child: Text(
+                              isEdit ? "Guardar Cambios" : "Añadir a mi Día",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  ],
+                      ],
+                    );
+                  },
                 );
               },
             ),
@@ -1321,324 +1385,381 @@ class _HabitScreenState extends State<HabitScreen>
         ? Colors.amber.withValues(alpha: 0.1)
         : const Color(0xFF10B981).withValues(alpha: 0.15);
 
+    // =========================================================
+    // ARQUITECTURA SENIOR: EL DOBLE SCAFFOLD PARA PANTALLAS GRANDES
+    // =========================================================
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
+      backgroundColor: Theme.of(
+        context,
+      ).scaffoldBackgroundColor, // El color de las bandas laterales en PC
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Scaffold(
+            backgroundColor: Colors.transparent, // Deja ver el color de fondo
+            appBar: AppBar(
+              title: GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (_, animation, __) => const ProfileScreen(),
+                    transitionsBuilder: (_, animation, __, child) {
+                      return FadeTransition(
+                        opacity: CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOut,
+                        ),
+                        child: SlideTransition(
+                          position:
+                              Tween<Offset>(
+                                begin: const Offset(0.04, 0),
+                                end: Offset.zero,
+                              ).animate(
+                                CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOut,
+                                ),
+                              ),
+                          child: child,
+                        ),
+                      );
+                    },
+                    transitionDuration: const Duration(milliseconds: 280),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.person_rounded,
-                      size: 18,
-                      color: Color(0xFFF59E0B),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      "Nvl ${provider.playerLevel}",
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFF59E0B),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
                       ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.person_rounded,
+                            size: 18,
+                            color: Color(0xFFF59E0B),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "Nvl ${provider.playerLevel}",
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFF59E0B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      "Bloom Your Day",
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              const Text(
-                "Bloom Your Day",
-                style: TextStyle(fontWeight: FontWeight.bold),
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.bar_chart_rounded, color: subTextColor),
+                  onPressed: () => _showStatsModal(provider),
+                ),
+                IconButton(
+                  icon: Icon(Icons.palette_rounded, color: subTextColor),
+                  onPressed: () => _showThemePicker(provider),
+                ),
+              ],
+            ),
+            floatingActionButton: FloatingActionButton(
+              onPressed: () => _showHabitDialog(),
+              backgroundColor: const Color(0xFF2563EB),
+              elevation: 6,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-            ],
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.bar_chart_rounded, color: subTextColor),
-            onPressed: () => _showStatsModal(provider),
-          ),
-          IconButton(
-            icon: Icon(Icons.palette_rounded, color: subTextColor),
-            onPressed: () => _showThemePicker(provider),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showHabitDialog(),
-        backgroundColor: const Color(0xFF2563EB),
-        elevation: 6,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: const Icon(Icons.add, color: Colors.white, size: 28),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
-          child: Screenshot(
-            controller: _screenshotController,
-            child: Stack(
-              children: [
-                Column(
+              child: const Icon(Icons.add, color: Colors.white, size: 28),
+            ),
+            body: Screenshot(
+              controller: _screenshotController,
+              // Contenedor que da color de fondo al pantallazo (Evita fotos negras/transparentes al compartir)
+              child: Container(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                child: Stack(
                   children: [
-                    Container(
-                      margin: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).cardColor,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: isDark
-                            ? []
-                            : [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.06),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                    Column(
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: isDark
+                                ? []
+                                : [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.06,
+                                      ),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                          ),
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: Text(
-                                  "${_getGreeting()}, ${provider.userName}",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: subTextColor,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                statusMessage,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: barColor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 5),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _getDate(),
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: textColor,
-                                ),
-                              ),
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 500),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: barBgColor,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  "$completed / ${displayedHabits.length}",
-                                  style: TextStyle(
-                                    color: isPerfectDay
-                                        ? Colors.amber[700]
-                                        : const Color(0xFF059669),
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 500),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: TweenAnimationBuilder<double>(
-                                      tween: Tween<double>(
-                                        begin: 0,
-                                        end: progress,
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      "${_getGreeting()}, ${provider.userName}",
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: subTextColor,
+                                        fontWeight: FontWeight.w500,
                                       ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    statusMessage,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: barColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 5),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _getDate(),
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 500),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: barBgColor,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      "$completed / ${displayedHabits.length}",
+                                      style: TextStyle(
+                                        color: isPerfectDay
+                                            ? Colors.amber[700]
+                                            : const Color(0xFF059669),
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: AnimatedContainer(
                                       duration: const Duration(
-                                        milliseconds: 600,
+                                        milliseconds: 500,
                                       ),
-                                      curve: Curves.easeOutCubic,
-                                      builder: (context, value, _) {
-                                        return LinearProgressIndicator(
-                                          value: value,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: TweenAnimationBuilder<double>(
+                                          tween: Tween<double>(
+                                            begin: 0,
+                                            end: progress,
+                                          ),
+                                          duration: const Duration(
+                                            milliseconds: 600,
+                                          ),
+                                          curve: Curves.easeOutCubic,
+                                          builder: (context, value, _) {
+                                            return LinearProgressIndicator(
+                                              value: value,
+                                              backgroundColor: isDark
+                                                  ? Colors.white10
+                                                  : Colors.black.withValues(
+                                                      alpha: 0.05,
+                                                    ),
+                                              color: barColor,
+                                              minHeight: 12,
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    "${(progress * 100).toInt()}%",
+                                    style: TextStyle(
+                                      color: barColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (provider.myHabits.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 5,
+                            ),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: ["Todas", "Pendientes", "Completadas"]
+                                    .map((filterName) {
+                                      final bool isSelected =
+                                          provider.currentFilter == filterName;
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 8.0,
+                                        ),
+                                        child: FilterChip(
+                                          label: Text(
+                                            filterName,
+                                            style: TextStyle(
+                                              fontWeight: isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.normal,
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : textColor,
+                                            ),
+                                          ),
+                                          selected: isSelected,
                                           backgroundColor: isDark
                                               ? Colors.white10
                                               : Colors.black.withValues(
                                                   alpha: 0.05,
                                                 ),
-                                          color: barColor,
-                                          minHeight: 12,
-                                        );
-                                      },
-                                    ),
+                                          selectedColor: const Color(
+                                            0xFF2563EB,
+                                          ),
+                                          showCheckmark: false,
+                                          side: BorderSide.none,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                          ),
+                                          onSelected: (bool selected) {
+                                            context
+                                                .read<HabitProvider>()
+                                                .setFilter(filterName);
+                                          },
+                                        ),
+                                      );
+                                    })
+                                    .toList(),
+                              ),
+                            ),
+                          ),
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            switchInCurve: Curves.easeOut,
+                            switchOutCurve: Curves.easeIn,
+                            child: displayedHabits.isEmpty
+                                ? const EmptyStateWidget()
+                                : LayoutBuilder(
+                                    key: ValueKey(provider.currentFilter),
+                                    builder: (context, constraints) {
+                                      return ListView.builder(
+                                        physics: const BouncingScrollPhysics(),
+                                        padding: const EdgeInsets.only(
+                                          bottom: 16,
+                                        ),
+                                        itemCount: displayedHabits.length,
+                                        itemBuilder: (context, index) =>
+                                            _buildHabitCard(
+                                              displayedHabits[index],
+                                              provider.myHabits.indexOf(
+                                                displayedHabits[index],
+                                              ),
+                                              isDark,
+                                              textColor,
+                                              subTextColor,
+                                              provider,
+                                              reorderable: false,
+                                            ),
+                                      );
+                                    },
+                                  ),
+                          ),
+                        ),
+                        if (provider.isAuthenticated)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            color: Colors.blueAccent.withValues(alpha: 0.05),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.cloud_done_rounded,
+                                  size: 14,
+                                  color: Colors.blueAccent,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  "Sincronizado con la nube",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.blueAccent,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                "${(progress * 100).toInt()}%",
-                                style: TextStyle(
-                                  color: barColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
+                      ],
+                    ),
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: ConfettiWidget(
+                        confettiController: _confettiController,
+                        blastDirectionality: BlastDirectionality.explosive,
+                        shouldLoop: false,
+                        colors: const [
+                          Color(0xFF10B981),
+                          Colors.blue,
+                          Colors.orange,
+                          Colors.pink,
+                          Colors.purple,
                         ],
                       ),
                     ),
-                    if (provider.myHabits.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 5,
-                        ),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: ["Todas", "Pendientes", "Completadas"]
-                                .map((filterName) {
-                                  final bool isSelected =
-                                      provider.currentFilter == filterName;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 8.0),
-                                    child: FilterChip(
-                                      label: Text(
-                                        filterName,
-                                        style: TextStyle(
-                                          fontWeight: isSelected
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                          color: isSelected
-                                              ? Colors.white
-                                              : textColor,
-                                        ),
-                                      ),
-                                      selected: isSelected,
-                                      backgroundColor: isDark
-                                          ? Colors.white10
-                                          : Colors.black.withValues(
-                                              alpha: 0.05,
-                                            ),
-                                      selectedColor: const Color(0xFF2563EB),
-                                      showCheckmark: false,
-                                      side: BorderSide.none,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      onSelected: (bool selected) {
-                                        context.read<HabitProvider>().setFilter(
-                                          filterName,
-                                        );
-                                      },
-                                    ),
-                                  );
-                                })
-                                .toList(),
-                          ),
-                        ),
-                      ),
-                    Expanded(
-                      child: displayedHabits.isEmpty
-                          ? const EmptyStateWidget()
-                          : LayoutBuilder(
-                              builder: (context, constraints) {
-                                return ListView.builder(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  itemCount: displayedHabits.length,
-                                  itemBuilder: (context, index) =>
-                                      _buildHabitCard(
-                                        displayedHabits[index],
-                                        provider.myHabits.indexOf(
-                                          displayedHabits[index],
-                                        ),
-                                        isDark,
-                                        textColor,
-                                        subTextColor,
-                                        provider,
-                                        reorderable: false,
-                                      ),
-                                );
-                              },
-                            ),
-                    ),
-                    // ---> AQUÍ COLOCAMOS EL BANNER AL FONDO DE TOD
-                    if (provider.isAuthenticated)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        color: Colors.blueAccent.withValues(alpha: 0.05),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.cloud_done_rounded,
-                              size: 14,
-                              color: Colors.blueAccent,
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              "Sincronizado con la nube",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.blueAccent,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                   ],
                 ),
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: ConfettiWidget(
-                    confettiController: _confettiController,
-                    blastDirectionality: BlastDirectionality.explosive,
-                    shouldLoop: false,
-                    colors: const [
-                      Color(0xFF10B981),
-                      Colors.blue,
-                      Colors.orange,
-                      Colors.pink,
-                      Colors.purple,
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1671,250 +1792,264 @@ class _HabitScreenState extends State<HabitScreen>
         ? completedSubTextColor
         : subTextColor;
 
-    return Container(
-      key: ValueKey(habit.id),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: habit.isCompleted
-            ? Border.all(
-                color: habit.dynamicColor.withValues(alpha: 0.5),
-                width: 1.5,
-              )
-            : null,
-        boxShadow: (isDark || habit.isCompleted)
-            ? []
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, 12 * (1 - value)),
+          child: child,
+        ),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Dismissible(
-          key: Key("dismiss_${habit.id}"),
-          direction: DismissDirection.horizontal,
-          confirmDismiss: (dir) async {
-            if (dir == DismissDirection.startToEnd) {
-              _showHabitDialog(index: realIndex);
-              return false;
-            }
-            return true;
-          },
-          onDismissed: (_) {
-            final deletedHabit = habit;
-            provider.deleteHabit(realIndex);
+      child: Container(
+        key: ValueKey(habit.id),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: habit.isCompleted
+              ? Border.all(
+                  color: habit.dynamicColor.withValues(alpha: 0.5),
+                  width: 1.5,
+                )
+              : null,
+          boxShadow: (isDark || habit.isCompleted)
+              ? []
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Dismissible(
+            key: Key("dismiss_${habit.id}"),
+            direction: DismissDirection.horizontal,
+            confirmDismiss: (dir) async {
+              if (dir == DismissDirection.startToEnd) {
+                _showHabitDialog(index: realIndex);
+                return false;
+              }
+              return true;
+            },
+            onDismissed: (_) {
+              final deletedHabit = habit;
+              provider.deleteHabit(realIndex);
 
-            ScaffoldMessenger.of(context).clearSnackBars();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text("Hábito '${deletedHabit.title}' eliminado"),
-                behavior: SnackBarBehavior.floating,
-                backgroundColor: isDark ? Colors.grey[800] : Colors.black87,
-                duration: const Duration(seconds: 4),
-                action: SnackBarAction(
-                  label: 'DESHACER',
-                  textColor: const Color(0xFF10B981),
-                  onPressed: () {
-                    provider.addOrUpdateHabit(
-                      deletedHabit.title,
-                      deletedHabit.dynamicColor,
-                      deletedHabit.iconCodePoint,
-                      deletedHabit.reminderTime,
-                      activeDays: deletedHabit.activeDays,
-                      isAlarm: deletedHabit.isAlarm,
-                      specificDate: deletedHabit.specificDate,
-                    );
-                  },
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("Hábito '${deletedHabit.title}' eliminado"),
+                  behavior: SnackBarBehavior.floating,
+                  backgroundColor: isDark ? Colors.grey[800] : Colors.black87,
+                  duration: const Duration(seconds: 4),
+                  action: SnackBarAction(
+                    label: 'DESHACER',
+                    textColor: const Color(0xFF10B981),
+                    onPressed: () {
+                      provider.addOrUpdateHabit(
+                        deletedHabit.title,
+                        deletedHabit.dynamicColor,
+                        deletedHabit.iconCodePoint,
+                        deletedHabit.reminderTime,
+                        activeDays: deletedHabit.activeDays,
+                        isAlarm: deletedHabit.isAlarm,
+                        specificDate: deletedHabit.specificDate,
+                      );
+                    },
+                  ),
                 ),
+              );
+            },
+            background: Container(
+              color: const Color(0xFF3B82F6),
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.only(left: 24),
+              child: const Icon(
+                Icons.edit_rounded,
+                color: Colors.white,
+                size: 28,
               ),
-            );
-          },
-          background: Container(
-            color: const Color(0xFF3B82F6),
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.only(left: 24),
-            child: const Icon(
-              Icons.edit_rounded,
-              color: Colors.white,
-              size: 28,
             ),
-          ),
-          secondaryBackground: Container(
-            color: const Color(0xFFEF4444),
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 24),
-            child: const Icon(
-              Icons.delete_sweep_rounded,
-              color: Colors.white,
-              size: 28,
+            secondaryBackground: Container(
+              color: const Color(0xFFEF4444),
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 24),
+              child: const Icon(
+                Icons.delete_sweep_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
             ),
-          ),
-          child: Material(
-            color: itemBgColor,
-            child: InkWell(
-              onTap: () {
-                if (!habit.isCompleted) {
-                  final now = DateTime.now();
-                  final todayHabits = provider.myHabits.where((h) {
-                    if (h.specificDate != null) {
-                      return h.specificDate!.year == now.year &&
-                          h.specificDate!.month == now.month &&
-                          h.specificDate!.day == now.day;
+            child: Material(
+              color: itemBgColor,
+              child: InkWell(
+                onTap: () {
+                  if (!habit.isCompleted) {
+                    final now = DateTime.now();
+                    final todayHabits = provider.myHabits.where((h) {
+                      if (h.specificDate != null) {
+                        return h.specificDate!.year == now.year &&
+                            h.specificDate!.month == now.month &&
+                            h.specificDate!.day == now.day;
+                      }
+                      return h.activeDays.contains(now.weekday);
+                    }).toList();
+                    final alreadyCompleted = todayHabits
+                        .where((h) => h.isCompleted)
+                        .length;
+                    if (alreadyCompleted + 1 == todayHabits.length) {
+                      _confettiController.play();
                     }
-                    return h.activeDays.contains(now.weekday);
-                  }).toList();
-                  final alreadyCompleted = todayHabits
-                      .where((h) => h.isCompleted)
-                      .length;
-                  if (alreadyCompleted + 1 == todayHabits.length) {
-                    _confettiController.play();
                   }
-                }
-                provider.toggleHabitCompletion(habit, context);
-              },
-              onLongPress: () => _showTimerSetupModal(habit, provider),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: habit.isCompleted
-                            ? (isLightColor
-                                  ? Colors.black.withValues(alpha: 0.1)
-                                  : Colors.white.withValues(alpha: 0.2))
-                            : (isDark
-                                  ? Colors.white10
-                                  : Colors.black.withValues(alpha: 0.05)),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        IconData(
-                          habit.iconCodePoint,
-                          fontFamily: 'MaterialIcons',
+                  provider.toggleHabitCompletion(habit, context);
+                },
+                onLongPress: () => _showTimerSetupModal(habit, provider),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: habit.isCompleted
+                              ? (isLightColor
+                                    ? Colors.black.withValues(alpha: 0.1)
+                                    : Colors.white.withValues(alpha: 0.2))
+                              : (isDark
+                                    ? Colors.white10
+                                    : Colors.black.withValues(alpha: 0.05)),
+                          shape: BoxShape.circle,
                         ),
-                        color: itemTitleColor,
-                        size: 24,
+                        child: Icon(
+                          IconData(
+                            habit.iconCodePoint,
+                            fontFamily: 'MaterialIcons',
+                          ),
+                          color: itemTitleColor,
+                          size: 24,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            habit.title,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: itemTitleColor,
-                              decoration: habit.isCompleted
-                                  ? TextDecoration.lineThrough
-                                  : TextDecoration.none,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              habit.title,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: itemTitleColor,
+                                decoration: habit.isCompleted
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              if (habit.specificDate == null)
-                                Text(
-                                  habit.streak >= 3
-                                      ? "🔥 Racha: ${habit.streak}"
-                                      : "Racha: ${habit.streak}",
-                                  style: TextStyle(
-                                    color: itemSubColor,
-                                    fontWeight: FontWeight.w500,
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                if (habit.specificDate == null)
+                                  Text(
+                                    habit.streak >= 3
+                                        ? "🔥 Racha: ${habit.streak}"
+                                        : "Racha: ${habit.streak}",
+                                    style: TextStyle(
+                                      color: itemSubColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  )
+                                else
+                                  Text(
+                                    "📅 Evento",
+                                    style: TextStyle(
+                                      color: itemSubColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
-                                )
-                              else
-                                Text(
-                                  "📅 Evento",
-                                  style: TextStyle(
+                                if (habit.reminderTime != null &&
+                                    !habit.isCompleted) ...[
+                                  const SizedBox(width: 10),
+                                  Icon(
+                                    habit.isAlarm
+                                        ? Icons.alarm_rounded
+                                        : Icons.notifications_active_rounded,
+                                    size: 14,
                                     color: itemSubColor,
-                                    fontWeight: FontWeight.w500,
                                   ),
-                                ),
-                              if (habit.reminderTime != null &&
-                                  !habit.isCompleted) ...[
-                                const SizedBox(width: 10),
-                                Icon(
-                                  habit.isAlarm
-                                      ? Icons.alarm_rounded
-                                      : Icons.notifications_active_rounded,
-                                  size: 14,
-                                  color: itemSubColor,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  habit.reminderTime!,
-                                  style: TextStyle(
-                                    color: itemSubColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(
-                      width: 50,
-                      height: 50,
-                      child: habit.isCompleted
-                          ? Container(
-                              decoration: BoxDecoration(
-                                color: isLightColor
-                                    ? Colors.black87
-                                    : Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.1),
-                                    blurRadius: 5,
-                                    offset: const Offset(0, 2),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    habit.reminderTime!,
+                                    style: TextStyle(
+                                      color: itemSubColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ],
-                              ),
-                              child: kIsWeb
-                                  ? Center(
-                                      child: Icon(
-                                        Icons.check_rounded,
-                                        size: 32,
-                                        color: isLightColor
-                                            ? Colors.white
-                                            : Colors.black87,
-                                      ),
-                                    )
-                                  : OverflowBox(
-                                      maxWidth: 80,
-                                      maxHeight: 80,
-                                      child: Lottie.asset(
-                                        'assets/animations/success.json',
-                                        repeat: false,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                            )
-                          : Icon(
-                              Icons.circle_outlined,
-                              size: 35,
-                              color: subTextColor.withValues(alpha: 0.5),
+                              ],
                             ),
-                    ),
-                  ],
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 50,
+                        height: 50,
+                        child: habit.isCompleted
+                            ? Container(
+                                decoration: BoxDecoration(
+                                  color: isLightColor
+                                      ? Colors.black87
+                                      : Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                      blurRadius: 5,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: kIsWeb
+                                    ? Center(
+                                        child: Icon(
+                                          Icons.check_rounded,
+                                          size: 32,
+                                          color: isLightColor
+                                              ? Colors.white
+                                              : Colors.black87,
+                                        ),
+                                      )
+                                    : OverflowBox(
+                                        maxWidth: 80,
+                                        maxHeight: 80,
+                                        child: Lottie.asset(
+                                          'assets/animations/success.json',
+                                          repeat: false,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                              )
+                            : Icon(
+                                Icons.circle_outlined,
+                                size: 35,
+                                color: subTextColor.withValues(alpha: 0.5),
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
+      ), // cierra Container del TweenAnimationBuilder
     );
   }
 }
